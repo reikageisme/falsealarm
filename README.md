@@ -1,8 +1,14 @@
 <p align="center">
   <picture>
+<<<<<<< Updated upstream
     <source srcset="assets/Falsealarm.gif" media="(prefers-color-scheme: dark)">
     <source srcset="assets/Falsealarm.gif" media="(prefers-color-scheme: light)">
     <img src="assets/Falsealarm.gif" alt="Falsealarm Logo" width="600" style="image-rendering: pixelated;">
+=======
+    <source srcset="assets/Falsealarm.png" media="(prefers-color-scheme: dark)">
+    <source srcset="assets/Falsealarm.png" media="(prefers-color-scheme: light)">
+    <img src="assets/Falsealarm.png" alt="Falsealarm Logo" width="600" style="image-rendering: pixelated;">
+>>>>>>> Stashed changes
   </picture>
 </p>
 <p align="center">
