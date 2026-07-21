@@ -14,3 +14,50 @@ BANNER = r"""
   Web Reconnaissance Engine v{version}
   https://github.com/falsealarm
 """.format(version=__version__)
+
+from falsealarm.core import (
+    ScanConfig,
+    AsyncEngine,
+    Database,
+    FalseAlarmLogger,
+    ScanScheduler,
+    OutputManager,
+)
+
+from falsealarm.modules import (
+    BaseModule,
+    DNSEnumModule,
+    SubdomainModule,
+    HTTPProbeModule,
+    TechDetectModule,
+    HeadersSSLModule,
+    DirFuzzModule,
+    JSAnalysisModule,
+    WaybackModule,
+    CORSModule,
+    PortScanModule,
+    WebSocketModule,
+)
+
+__all__ = [
+    "__version__",
+    "BANNER",
+    "ScanConfig",
+    "AsyncEngine",
+    "Database",
+    "FalseAlarmLogger",
+    "ScanScheduler",
+    "OutputManager",
+    "BaseModule",
+    "DNSEnumModule",
+    "SubdomainModule",
+    "HTTPProbeModule",
+    "TechDetectModule",
+    "HeadersSSLModule",
+    "DirFuzzModule",
+    "JSAnalysisModule",
+    "WaybackModule",
+    "CORSModule",
+    "PortScanModule",
+    "WebSocketModule",
+]

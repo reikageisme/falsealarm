@@ -3,23 +3,27 @@ import sys
 import typer
 from typing import Optional, List
 from falsealarm import __version__
-from falsealarm.core.config import ScanConfig
-from falsealarm.core.engine import AsyncEngine
-from falsealarm.core.db import Database
-from falsealarm.core.logger import FalseAlarmLogger
-from falsealarm.core.scheduler import ScanScheduler
-from falsealarm.core.output import OutputManager
-from falsealarm.modules.dns_enum import DNSEnumModule
-from falsealarm.modules.subdomain import SubdomainModule
-from falsealarm.modules.httpprobe import HTTPProbeModule
-from falsealarm.modules.techdetect import TechDetectModule
-from falsealarm.modules.headers_ssl import HeadersSSLModule
-from falsealarm.modules.dirfuzz import DirFuzzModule
-from falsealarm.modules.js_analysis import JSAnalysisModule
-from falsealarm.modules.wayback import WaybackModule
-from falsealarm.modules.cors import CORSModule
-from falsealarm.modules.portscan import PortScanModule
-from falsealarm.modules.websocket import WebSocketModule
+from falsealarm.core import (
+    ScanConfig,
+    AsyncEngine,
+    Database,
+    FalseAlarmLogger,
+    ScanScheduler,
+    OutputManager,
+)
+from falsealarm.modules import (
+    DNSEnumModule,
+    SubdomainModule,
+    HTTPProbeModule,
+    TechDetectModule,
+    HeadersSSLModule,
+    DirFuzzModule,
+    JSAnalysisModule,
+    WaybackModule,
+    CORSModule,
+    PortScanModule,
+    WebSocketModule,
+)
 
 app = typer.Typer(
     add_completion=False, 
