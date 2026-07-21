@@ -59,15 +59,23 @@
 ## 🚀 Installation
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone https://github.com/reikageisme/falsealarm.git
 cd falsealarm
 
-# Install in development mode
+# 2. Install in development mode
 pip install -e .
 
-# Or install dependencies directly
+# (Optional) Install requirements directly
 pip install -r requirements.txt
+```
+
+### 🔄 Updating
+If you already have FalseAlarm installed and want to fetch the latest features without deleting the folder, run:
+```bash
+cd falsealarm
+git pull origin main
+pip install -e .
 ```
 
 ## 💻 Usage
