@@ -7,8 +7,12 @@
 </p>
 
 <p align="center">
-  <strong>An advanced, async-driven Layer 7 Reconnaissance Engine.</strong><br/>
-  <sub>Traditional scanning tools are slow, synchronous, and easily blocked. FalseAlarm utilizes asynchronous I/O and intelligent module scheduling to blast through targets with immense speed while fingerprinting bypasses, WAFs, and attack surfaces. Built for Pentesters, Bug Bounty Hunters & CTF Players.</sub>
+  <strong>An out-of-the-box, AI-Ready Reconnaissance Framework for Modern Hackers.</strong><br/>
+  <sub>Traditional scanning tools are slow, synchronous, and easily blocked. FalseAlarm utilizes asynchronous I/O, dynamic YAML Vuln templates, and intelligent module scheduling to blast through targets with immense speed while evading WAFs. Built for Pentesters, Bug Bounty Hunters & CTF Players.</sub>
+</p>
+
+<p align="center">
+  Developed by <a href="https://github.com/reikageisme">reikageisme</a>
 </p>
 
 <p align="center">
@@ -204,10 +208,13 @@ falsealarm/
 │   │   └── utils.py          # Shared utilities
 │   ├── modules/
 │   │   ├── base.py           # BaseModule abstract class
-│   │   └── dns_enum.py       # DNS Enumeration module
+│   │   ├── dns_enum.py       # DNS Enumeration module
+│   │   └── vulnscan.py       # YAML VulnScan module
 │   └── data/
 │       ├── user_agents.txt   # Browser UA strings
 │       ├── tech_signatures.json
+│       ├── templates/        # VulnScan YAML signatures
+│       │   └── env-exposure.yaml
 │       └── wordlists/
 │           ├── common_dirs.txt
 │           └── subdomains_top1k.txt
