@@ -1,4 +1,7 @@
 import asyncio
+import os
+import sys
+import json
 import random
 import string
 from typing import Any
@@ -38,6 +41,78 @@ class DirFuzzModule(BaseModule):
         # We send a request to a highly unlikely path/param to see the server's default behavior
         random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
         baseline_url = target.replace("FUZZ", random_str) if has_fuzz else urljoin(target, f"wildcard_test_{random_str}")
+        
+        # Check if Go engine exists
+        if sys.platform == "win32":
+            binary_name = "dirfuzz-engine.exe"
+        else:
+            binary_name = "dirfuzz-engine"
+            
+        go_engine_path = os.path.join(os.path.dirname(__file__), "..", "..", "engine-go", binary_name)
+        
+        if os.path.exists(go_engine_path):
+            self.logger.info(f"🚀 Engaging Go-based High Speed Fuzzing Engine...")
+            target_fuzz = target if has_fuzz else urljoin(target, "FUZZ")
+            
+            cmd = [
+                go_engine_path,
+                "-u", target_fuzz,
+                "-w", wordlist_path,
+                "-t", str(self.config.threads),
+                "-timeout", str(self.config.timeout)
+            ]
+            
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0:
+                    try:
+                        go_results = json.loads(stdout.decode())
+                        # Skip error objects if any
+                        if isinstance(go_results, dict) and "error" in go_results:
+                            self.logger.error(f"Go engine error: {go_results['error']}")
+                        else:
+                            for r in go_results:
+                                url = r.get("url")
+                                status = r.get("status")
+                                length = r.get("length")
+                                
+                                item = {
+                                    "type": "fuzz" if has_fuzz else "directory",
+                                    "payload": url.split("/")[-1],
+                                    "url": url,
+                                    "status": status,
+                                    "length": length
+                                }
+                                results.append(item)
+                                
+                                if status == 403:
+                                    stats["forbidden"] += 1
+                                    self.logger.warning(f"Forbidden: {url} [403]")
+                                else:
+                                    stats["found"] += 1
+                                    self.logger.success(f"Found: {url} [Status: {status}, Size: {length}]")
+                                    
+                            stats["paths_tested"] = len(paths_to_test)
+                            return self._make_result(target, results, stats)
+                            
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Go engine returned invalid JSON: {e}")
+                else:
+                    self.logger.error(f"Go engine failed: {stderr.decode()}")
+            except OSError as e:
+                self.logger.warning(f"Could not execute Go binary (OS Policy/AV blocking?): {e}")
+                
+            self.logger.warning("Falling back to Python Async Engine...")
+        else:
+            self.logger.warning("Go binary not found. Running in Python Async Engine fallback mode...")
+
         
         self.logger.info(f"Generating false-positive baseline with payload: {random_str}")
         baseline_resp = await self.engine.get(baseline_url, allow_redirects=False)
