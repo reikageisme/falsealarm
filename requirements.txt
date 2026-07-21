@@ -1,0 +1,11 @@
+aiohttp>=3.9
+aiohttp-socks>=0.8
+typer[all]>=0.12
+rich>=13.0
+dnspython>=2.6
+websockets>=12.0
+beautifulsoup4>=4.12
+pyjsparser>=2.7
+aiosqlite>=0.20
+pyyaml>=6.0
+certifi

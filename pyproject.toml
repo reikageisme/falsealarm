@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "falsealarm"
+version = "1.0.0"
+description = "Async Web Reconnaissance Engine for Pentesters & Bug Bounty Hunters"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "FalseAlarm Team"}]
+keywords = ["pentesting", "reconnaissance", "security", "bug-bounty"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "aiohttp-socks>=0.8",
+    "typer[all]>=0.12",
+    "rich>=13.0",
+    "dnspython>=2.6",
+    "websockets>=12.0",
+    "beautifulsoup4>=4.12",
+    "pyjsparser>=2.7",
+    "aiosqlite>=0.20",
+    "pyyaml>=6.0",
+    "certifi",
+]
+
+[project.scripts]
+falsealarm = "falsealarm.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["falsealarm*"]
+
+[tool.setuptools.package-data]
+falsealarm = ["data/**/*"]
