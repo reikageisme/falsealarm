@@ -83,6 +83,15 @@ git pull origin main
 pip install -e .
 ```
 
+## 🧠 AI Configuration
+To unlock the true power of **AI Triage** (Milestone 3), you need to provide a Google Gemini API Key. You can easily do this by creating a `.env` file in your working directory. 
+
+Run the following command to generate the `.env` file:
+```bash
+echo -e 'GEMINI_API_KEY="your_api_key_here"' > .env
+```
+FalseAlarm will automatically detect and load this key during runtime.
+
 ## 💻 Usage
 
 ```bash
@@ -101,11 +110,14 @@ falsealarm scan -u example.com -q
 # With rate limiting and proxy
 falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
 
-# Export results to TXT (Default)
-falsealarm -u example.com -A -o report.txt
+# Vulnerability Scanning using YAML Templates
+falsealarm scan -u example.com -m vulnscan
 
 # Export results to JSON
 falsealarm -u example.com -A -o results.json -f json
+
+# Run all modules and execute an AI Triage analysis at the end!
+falsealarm -u example.com -A --ai-triage
 
 # Resume a previous scan
 falsealarm scan --resume fa_20260721_204512

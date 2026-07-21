@@ -1,8 +1,15 @@
 import asyncio
 import sys
 import typer
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 from typing import Optional, List
 from falsealarm import __version__
+
+# Load environment variables from .env file
+load_dotenv()
+
 from falsealarm.core import (
     ScanConfig,
     AsyncEngine,
