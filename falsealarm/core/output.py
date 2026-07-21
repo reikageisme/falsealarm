@@ -22,7 +22,7 @@ class OutputManager:
         Args:
             data: Data to export (list of dicts or dict).
             filepath: Output file path.
-            fmt: Format string: 'json', 'csv', or 'html'.
+            fmt: Format string: 'json', 'csv', 'html', or 'txt'.
         """
         # Normalize data to list
         if isinstance(data, dict):
@@ -49,6 +49,8 @@ class OutputManager:
             await OutputManager.export_csv(data, filepath)
         elif fmt == "html":
             await OutputManager.export_html(data, filepath)
+        elif fmt == "txt":
+            await OutputManager.export_txt(data, filepath)
         else:
             # Default to JSON
             await OutputManager.export_json(data, filepath)
@@ -83,6 +85,23 @@ class OutputManager:
             for item in data:
                 if isinstance(item, dict):
                     writer.writerow({k: str(v) for k, v in item.items()})
+
+    @staticmethod
+    async def export_txt(data: list[dict[str, Any]], filepath: str) -> None:
+        """Export data to a plain text file."""
+        if not data:
+            return
+
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, "w", encoding="utf-8") as f:
+            for item in data:
+                if isinstance(item, dict):
+                    # Format as Key: Value pairs with a separator between records
+                    for k, v in item.items():
+                        f.write(f"{k}: {v}\n")
+                    f.write("-" * 40 + "\n")
 
     @staticmethod
     async def export_html(data: list[dict[str, Any]], filepath: str) -> None:
