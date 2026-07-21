@@ -71,6 +71,10 @@ cd falsealarm
 # 2. Install in development mode
 pip install -e .
 
+# 3. (Optional but Recommended) Compile Go Engines for maximum speed
+# Requires Go to be installed (apt install golang)
+falsealarm build-engine
+
 # (Optional) Install requirements directly
 pip install -r requirements.txt
 ```
@@ -110,14 +114,17 @@ falsealarm scan -u example.com -q
 # With rate limiting and proxy
 falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
 
+# High-Speed Directory Fuzzing (Uses Go Engine if compiled)
+falsealarm -u http://google.com/FUZZ -m dirfuzz
+
 # Vulnerability Scanning using YAML Templates
-falsealarm scan -u example.com -m vulnscan
+falsealarm scan -u http://aceda.id.vn -m vulnscan
+
+# Run multiple modules and execute an AI Triage analysis at the end!
+falsealarm -u example.com -m dns,vulnscan --ai-triage
 
 # Export results to JSON
 falsealarm -u example.com -A -o results.json -f json
-
-# Run all modules and execute an AI Triage analysis at the end!
-falsealarm -u example.com -A --ai-triage
 
 # Resume a previous scan
 falsealarm scan --resume fa_20260721_204512

@@ -182,9 +182,46 @@ async def _run_scan(
     await engine.close()
     await db.close()
 
+@app.command(name="build-engine")
+def build_engine():
+    """
+    Compile the high-performance Go engines natively.
+    """
+    import subprocess
+    import sys
+    from rich.console import Console
+    console = Console()
+    
+    console.print("[*] Locating Go environment...")
+    try:
+        subprocess.run(["go", "version"], check=True, capture_output=True)
+    except Exception:
+        console.print("[red][!] Go compiler not found. Please install Go (https://go.dev/doc/install) first.[/red]")
+        sys.exit(1)
+        
+    engine_dir = os.path.join(os.path.dirname(__file__), "..", "engine-go")
+    if not os.path.exists(engine_dir):
+        console.print("[red][!] engine-go directory not found.[/red]")
+        sys.exit(1)
+        
+    binary_name = "dirfuzz-engine.exe" if sys.platform == "win32" else "dirfuzz-engine"
+    
+    console.print("[*] Compiling DirFuzz Go Engine...")
+    try:
+        subprocess.run(
+            ["go", "build", "-o", binary_name, "dirfuzz.go"],
+            cwd=engine_dir,
+            check=True
+        )
+        console.print(f"[green][+] Successfully compiled {binary_name}![/green]")
+        console.print("[*] FalseAlarm is now running with Polyglot Engine (Python + Go) capabilities.")
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red][!] Compilation failed: {e}[/red]")
+        sys.exit(1)
+
 def main():
     # Auto-inject 'scan' command for backward compatibility if the user just types `falsealarm -u ...`
-    if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "--help", "--version"]:
+    if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "build-engine", "--help", "--version"]:
         sys.argv.insert(1, "scan")
     app()
 
