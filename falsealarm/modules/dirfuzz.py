@@ -86,8 +86,10 @@ class DirFuzzModule(BaseModule):
                             
                             if status == 403:
                                 stats["forbidden"] += 1
+                                self.logger.warning(f"Forbidden: {test_url} [403]")
                             else:
                                 stats["found"] += 1
+                                self.logger.success(f"Found: {test_url} [Status: {status}, Size: {length}]")
                                 
                             return item
                 except Exception:

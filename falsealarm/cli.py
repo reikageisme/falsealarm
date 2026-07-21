@@ -155,6 +155,14 @@ async def _run_scan(
     
     scan_results = await scheduler.run()
     
+    if not silent:
+        for mod_name, mod_data in scan_results.items():
+            data = mod_data.get("data", [])
+            if data:
+                columns = list(data[0].keys())
+                rows = [[str(item.get(col, "")) for col in columns] for item in data]
+                logger.table(f"{mod_name.upper()} Results", columns, rows)
+    
     if output:
         await OutputManager.export(scan_results, output, format_type)
         if not silent:
