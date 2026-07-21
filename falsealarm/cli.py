@@ -52,7 +52,10 @@ def list_scans(
 
 @app.command(name="scan")
 def run_scan(
-    url: str = typer.Option(..., "-u", "--url", help="Target URL or domain [required for scan]"),
+    url: Optional[str] = typer.Option(None, "-u", "--url", help="Target URL or domain"),
+    target_list: Optional[str] = typer.Option(None, "-iL", "--list", help="File containing list of targets"),
+    config_file: Optional[str] = typer.Option(None, "-c", "--config", help="YAML configuration profile file"),
+    profile: str = typer.Option("default", "-p", "--profile", help="Profile name within the config file [default: default]"),
     module: Optional[str] = typer.Option(None, "-m", "--module", help="Specific module(s) comma-separated"),
     all_modules: bool = typer.Option(False, "-A", "--all", help="Run all available modules"),
     quick: bool = typer.Option(False, "-q", "--quick", help="Quick scan (fast modules only)"),
@@ -78,7 +81,8 @@ def run_scan(
     try:
         asyncio.run(
             _run_scan(
-                url=url, module=module, all_modules=all_modules, quick=quick, threads=threads, rate=rate,
+                url=url, target_list=target_list, config_file=config_file, profile=profile,
+                module=module, all_modules=all_modules, quick=quick, threads=threads, rate=rate,
                 timeout=timeout, delay=delay, proxy=proxy, proxy_file=proxy_file, random_agent=random_agent,
                 wordlist=wordlist, output=output, format_type=format_type, silent=silent, verbose=verbose,
                 resume=resume, ai_triage=ai_triage
@@ -89,7 +93,8 @@ def run_scan(
         sys.exit(130)
 
 async def _run_scan(
-    url: str, module: Optional[str], all_modules: bool, quick: bool, threads: int, rate: int,
+    url: Optional[str], target_list: Optional[str], config_file: Optional[str], profile: str,
+    module: Optional[str], all_modules: bool, quick: bool, threads: int, rate: int,
     timeout: int, delay: float, proxy: Optional[str], proxy_file: Optional[str], random_agent: bool,
     wordlist: Optional[str], output: Optional[str], format_type: str, silent: bool, verbose: bool,
     resume: Optional[str], ai_triage: bool
@@ -108,52 +113,108 @@ async def _run_scan(
     elif quick:
         modules_list = ["quick"]
         
-    config = ScanConfig(
-        target=url,
-        modules=modules_list,
-        threads=threads,
-        rate=rate,
-        timeout=timeout,
-        delay=delay,
-        proxy=proxy,
-        proxy_file=proxy_file,
-        random_agent=random_agent,
-        output=output,
-        format=format_type,
-        silent=silent,
-        verbose=verbose,
-        wordlist=wordlist,
-        resume=resume,
-        ai_triage=ai_triage,
-    )
-    
-    if not silent:
-        logger.scan_config(config)
+    if config_file:
+        try:
+            config = ScanConfig.from_file(config_file, profile)
+            # Override YAML config with explicit CLI flags if provided
+            if url: config.target = url
+            if target_list: config.targets_file = target_list
+            if modules_list: config.modules = modules_list
+            if output: config.output = output
+            if silent: config.silent = silent
+            if verbose: config.verbose = verbose
+        except Exception as e:
+            typer.secho(f"[!] Config Error: {e}", fg=typer.colors.RED)
+            sys.exit(1)
+    else:
+        config = ScanConfig(
+            target=url or "",
+            targets_file=target_list,
+            modules=modules_list,
+            threads=threads,
+            rate=rate,
+            timeout=timeout,
+            delay=delay,
+            proxy=proxy,
+            proxy_file=proxy_file,
+            random_agent=random_agent,
+            output=output,
+            format=format_type,
+            silent=silent,
+            verbose=verbose,
+            wordlist=wordlist,
+            resume=resume,
+            ai_triage=ai_triage,
+        )
         
-    engine = AsyncEngine(config)
-    db = Database()
+    try:
+        config.validate()
+    except ValueError as e:
+        typer.secho(f"[!] Validation Error: {e}", fg=typer.colors.RED)
+        sys.exit(1)
+        
+    # Read target list if provided
+    if config.targets_file:
+        try:
+            with open(config.targets_file, 'r') as f:
+                config.targets = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            if not config.targets:
+                typer.secho("[!] Target list file is empty.", fg=typer.colors.RED)
+                sys.exit(1)
+        except Exception as e:
+            typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
+            sys.exit(1)
+            
+    # Normalize target lists
+    targets = config.targets if config.targets else [config.target]
     
+    # We will currently run scans sequentially over targets
+    db = Database()
     await db.init()
     
-    scheduler = ScanScheduler(config=config, engine=engine, db=db, logger=logger)
-    
-    # Modules are automatically registered during ScanScheduler initialization
-    scan_results = await scheduler.run()
-    
-    if not silent:
-        for mod_name, mod_data in scan_results.items():
-            data = mod_data.get("data", [])
-            if data:
-                columns = list(data[0].keys())
-                rows = [[str(item.get(col, "")) for col in columns] for item in data]
-                logger.table(f"{mod_name.upper()} Results", columns, rows)
-    
-    if output:
-        await OutputManager.export(scan_results, output, format_type)
-        if not silent:
-            logger.success(f"Results saved to {output}")
+    for current_target in targets:
+        if not current_target:
+            continue
             
-    await engine.close()
+        if len(targets) > 1 and not silent:
+            logger.console.print(f"\n[bold yellow]>>> Scanning Target: {current_target} <<<[/bold yellow]")
+            
+        # Create a deep copy of config for this specific target
+        target_config = ScanConfig.from_dict(config.to_dict())
+        target_config.target = current_target
+        
+        if not silent and len(targets) == 1:
+            logger.scan_config(target_config)
+            
+        engine = AsyncEngine(target_config)
+        
+        scheduler = ScanScheduler(config=target_config, engine=engine, db=db, logger=logger)
+        
+        # Modules are automatically registered during ScanScheduler initialization
+        scan_results = await scheduler.run()
+        
+        if not silent:
+            for mod_name, mod_data in scan_results.items():
+                data = mod_data.get("data", [])
+                if data:
+                    columns = list(data[0].keys())
+                    rows = [[str(item.get(col, "")) for col in columns] for item in data]
+                    logger.table(f"{mod_name.upper()} Results ({current_target})", columns, rows)
+        
+        if output:
+            # If multiple targets, append target name to output file to avoid overwrite
+            final_output = output
+            if len(targets) > 1:
+                base, ext = os.path.splitext(output)
+                safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
+                final_output = f"{base}_{safe_target}{ext}"
+                
+            await OutputManager.export(scan_results, final_output, format_type)
+            if not silent:
+                logger.success(f"Results for {current_target} saved to {final_output}")
+                
+        await engine.close()
+        
     await db.close()
 
 @app.command(name="build-engine")

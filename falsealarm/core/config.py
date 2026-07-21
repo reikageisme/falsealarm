@@ -4,6 +4,8 @@ from typing import Any
 @dataclass
 class ScanConfig:
     target: str = ""
+    targets_file: str | None = None
+    targets: list[str] = field(default_factory=list)
     modules: list = field(default_factory=list)
     threads: int = 50
     rate: int = 30
@@ -33,10 +35,27 @@ class ScanConfig:
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
         return cls(**filtered_data)
 
+    @classmethod
+    def from_file(cls, filepath: str, profile: str = "default") -> "ScanConfig":
+        """Load configuration from a YAML file for a specific profile."""
+        import yaml
+        import os
+        
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Configuration file not found: {filepath}")
+            
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            
+        if not data or profile not in data:
+            raise ValueError(f"Profile '{profile}' not found in {filepath}")
+            
+        return cls.from_dict(data[profile])
+
     def validate(self) -> None:
         """Validate the configuration."""
-        if not self.target and not self.resume:
-            raise ValueError("Target or resume ID must be specified.")
+        if not self.target and not self.targets_file and not self.targets and not self.resume:
+            raise ValueError("Target, targets_file, targets list, or resume ID must be specified.")
         if self.threads <= 0:
             raise ValueError("Threads must be a positive integer.")
         if self.rate <= 0:
