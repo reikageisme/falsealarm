@@ -1,5 +1,10 @@
-# FalseAlarm
-
+<p align="center">
+  <picture>
+    <source srcset="assets/falsealarm.gif" media="(prefers-color-scheme: dark)">
+    <source srcset="assets/falsealarm.gif" media="(prefers-color-scheme: light)">
+    <img src="assets/falsealarm.gif" alt="falsealarm Logo" width="600" style="image-rendering: pixelated;">
+  </picture>
+</p>
 <p align="center">
   <strong>🔍 Async Web Reconnaissance Engine</strong><br>
   <em>For Pentesters, Bug Bounty Hunters & CTF Players</em>
@@ -34,18 +39,18 @@
 | `techdetect` | Technology Detection (CMS, frameworks, WAF, CDN) | ✅ |
 | `headers` | Security Headers Analysis | ✅ |
 | `ssl` | SSL/TLS Certificate & Cipher Analysis | ✅ |
-| `dirfuzz` | Directory/Path Bruteforcing | 🔜 Phase 3 |
-| `js_analysis` | JavaScript AST Analysis (API endpoints, secrets) | 🔜 Phase 3 |
-| `wayback` | Wayback Machine URL Discovery | 🔜 Phase 3 |
-| `cors` | CORS Misconfiguration Detection | 🔜 Phase 3 |
-| `portscan` | Async TCP Port Scanner | 🔜 Phase 4 |
-| `websocket` | WebSocket Discovery & Analysis | 🔜 Phase 4 |
+| `dirfuzz` | Directory/Path Bruteforcing | ✅ |
+| `js_analysis` | JavaScript AST Analysis (API endpoints, secrets) | ✅ |
+| `wayback` | Wayback Machine URL Discovery | ✅ |
+| `cors` | CORS Misconfiguration Detection | ✅ |
+| `portscan` | Async TCP Port Scanner | ✅ |
+| `websocket` | WebSocket Discovery & Analysis | ✅ |
 
 ## 🚀 Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/falsealarm.git
+git clone https://github.com/reikageisme/falsealarm.git
 cd falsealarm
 
 # Install in development mode

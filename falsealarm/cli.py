@@ -14,6 +14,12 @@ from falsealarm.modules.subdomain import SubdomainModule
 from falsealarm.modules.httpprobe import HTTPProbeModule
 from falsealarm.modules.techdetect import TechDetectModule
 from falsealarm.modules.headers_ssl import HeadersSSLModule
+from falsealarm.modules.dirfuzz import DirFuzzModule
+from falsealarm.modules.js_analysis import JSAnalysisModule
+from falsealarm.modules.wayback import WaybackModule
+from falsealarm.modules.cors import CORSModule
+from falsealarm.modules.portscan import PortScanModule
+from falsealarm.modules.websocket import WebSocketModule
 
 app = typer.Typer(
     add_completion=False, 
@@ -136,6 +142,12 @@ async def _run_scan(
     scheduler.register_module(HTTPProbeModule)
     scheduler.register_module(TechDetectModule)
     scheduler.register_module(HeadersSSLModule)
+    scheduler.register_module(DirFuzzModule)
+    scheduler.register_module(JSAnalysisModule)
+    scheduler.register_module(WaybackModule)
+    scheduler.register_module(CORSModule)
+    scheduler.register_module(PortScanModule)
+    scheduler.register_module(WebSocketModule)
     
     scan_results = await scheduler.run()
     
