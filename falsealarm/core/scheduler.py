@@ -55,10 +55,35 @@ class ScanScheduler:
         self.logger = logger
         self._modules: dict[str, type] = {}
         self._scan_id: str | None = None
+        self._discover_modules()
+
+    def _discover_modules(self) -> None:
+        """Automatically discover and register all subclasses of BaseModule in the modules package."""
+        import importlib
+        import pkgutil
+        import inspect
+        
+        # We need to import falsealarm.modules so we can scan it
+        import falsealarm.modules as modules_pkg
+        from falsealarm.modules.base import BaseModule
+        
+        # Load all modules in the package
+        prefix = modules_pkg.__name__ + "."
+        for _, modname, _ in pkgutil.iter_modules(modules_pkg.__path__, prefix):
+            try:
+                module = importlib.import_module(modname)
+                # Find classes in the module that inherit from BaseModule (and are not BaseModule itself)
+                for name, obj in inspect.getmembers(module, inspect.isclass):
+                    if issubclass(obj, BaseModule) and obj is not BaseModule:
+                        # Ensure it has a name
+                        if hasattr(obj, 'name') and obj.name:
+                            self._modules[obj.name] = obj
+            except Exception as e:
+                self.logger.error(f"Failed to load module {modname}: {e}")
 
     def register_module(self, module_class) -> None:
-        """Register a module class for use in scans.
-
+        """Manually register a module class (mostly for testing).
+        
         Args:
             module_class: A subclass of BaseModule with a 'name' attribute.
         """

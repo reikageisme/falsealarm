@@ -115,10 +115,10 @@ falsealarm scan -u example.com -q
 falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
 
 # High-Speed Directory Fuzzing (Uses Go Engine if compiled)
-falsealarm -u http://google.com/FUZZ -m dirfuzz
+falsealarm -u example.com/FUZZ -m dirfuzz
 
 # Vulnerability Scanning using YAML Templates
-falsealarm scan -u http://aceda.id.vn -m vulnscan
+falsealarm scan -u example.com -m vulnscan
 
 # Run multiple modules and execute an AI Triage analysis at the end!
 falsealarm -u example.com -m dns,vulnscan --ai-triage

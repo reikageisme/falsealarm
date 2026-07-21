@@ -18,20 +18,7 @@ from falsealarm.core import (
     ScanScheduler,
     OutputManager,
 )
-from falsealarm.modules import (
-    DNSEnumModule,
-    SubdomainModule,
-    HTTPProbeModule,
-    TechDetectModule,
-    HeadersSSLModule,
-    DirFuzzModule,
-    JSAnalysisModule,
-    WaybackModule,
-    CORSModule,
-    PortScanModule,
-    WebSocketModule,
-    VulnScanModule,
-)
+# Modules are now auto-discovered by the ScanScheduler
 
 app = typer.Typer(
     add_completion=False, 
@@ -150,20 +137,7 @@ async def _run_scan(
     
     scheduler = ScanScheduler(config=config, engine=engine, db=db, logger=logger)
     
-    # Register modules
-    scheduler.register_module(DNSEnumModule)
-    scheduler.register_module(SubdomainModule)
-    scheduler.register_module(HTTPProbeModule)
-    scheduler.register_module(TechDetectModule)
-    scheduler.register_module(HeadersSSLModule)
-    scheduler.register_module(DirFuzzModule)
-    scheduler.register_module(JSAnalysisModule)
-    scheduler.register_module(WaybackModule)
-    scheduler.register_module(CORSModule)
-    scheduler.register_module(PortScanModule)
-    scheduler.register_module(WebSocketModule)
-    scheduler.register_module(VulnScanModule)
-    
+    # Modules are automatically registered during ScanScheduler initialization
     scan_results = await scheduler.run()
     
     if not silent:
