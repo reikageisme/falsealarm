@@ -2,19 +2,29 @@
   <picture>
     <source srcset="assets/Falsealarm.png" media="(prefers-color-scheme: dark)">
     <source srcset="assets/Falsealarm.png" media="(prefers-color-scheme: light)">
-    <img src="assets/Falsealarm.png" alt="Falsealarm Logo" width="600" style="image-rendering: pixelated;">
+    <img src="assets/Falsealarm.png" alt="FalseAlarm Logo" width="600" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;">
   </picture>
-</p>
-<p align="center">
-  <strong>🔍 Async Web Reconnaissance Engine</strong><br>
-  <em>For Pentesters, Bug Bounty Hunters & CTF Players</em>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macos-lightgrey?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/version-1.0.0-purple?style=flat-square" alt="Version 1.0.0">
+  <strong>An advanced, async-driven Layer 7 Reconnaissance Engine.</strong><br/>
+  <sub>Traditional scanning tools are slow, synchronous, and easily blocked. FalseAlarm utilizes asynchronous I/O and intelligent module scheduling to blast through targets with immense speed while fingerprinting bypasses, WAFs, and attack surfaces. Built for Pentesters, Bug Bounty Hunters & CTF Players.</sub>
+</p>
+
+<p align="center">
+  <a href="#-installation">Quick Start</a> •
+  <a href="#-usage">CLI Usage</a> •
+  <a href="#-modules">Modules</a> •
+  <a href="#-using-as-a-python-library">Python API</a>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/badge/pypi-v1.0.0--dev-2563eb?style=flat-square" alt="PyPI version" /></a>
+  <a href="https://github.com/reikageisme/falsealarm/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-16a34a.svg?style=flat-square" alt="license" /></a>
+  <a href="https://github.com/reikageisme/falsealarm/stargazers"><img src="https://img.shields.io/github/stars/reikageisme/falsealarm?style=flat-square&color=eab308" alt="stars" /></a>
+  <a href="https://github.com/reikageisme/falsealarm/issues"><img src="https://img.shields.io/github/issues/reikageisme/falsealarm?style=flat-square&color=e67e22" alt="open issues" /></a>
+  <a href="https://github.com/reikageisme/falsealarm/pulls"><img src="https://img.shields.io/github/issues-pr/reikageisme/falsealarm?style=flat-square&color=9b59b6" alt="open PRs" /></a>
+  <img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square" alt="Python Version">
 </p>
 
 ---

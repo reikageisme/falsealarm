@@ -55,18 +55,11 @@ class FalseAlarmLogger:
         return datetime.now().strftime("%H:%M:%S")
 
     def banner(self) -> None:
-        """Print the ASCII art banner with gradient colors."""
+        """Print the ASCII art banner."""
         if self.silent:
             return
-        from falsealarm import BANNER
-        lines = BANNER.strip().split("\n")
-        colors = [
-            "cyan", "bright_cyan", "blue", "bright_blue",
-            "magenta", "bright_magenta", "cyan", "bright_cyan",
-        ]
-        for i, line in enumerate(lines):
-            color = colors[i % len(colors)]
-            self.console.print(f"[{color}]{line}[/{color}]")
+        from falsealarm import print_banner
+        print_banner(console=self.console)
 
     def info(self, msg: str) -> None:
         """Print info message."""
