@@ -1,0 +1,20 @@
+id: git-config-exposure
+info:
+  name: Git Configuration Exposure
+  author: reikageisme
+  severity: high
+  description: The target appears to have a publically accessible .git directory which exposes the configuration file. This often leads to source code leakage and sensitive credentials disclosure.
+  tags: exposure,git,config
+
+requests:
+  - method: GET
+    path: /.git/config
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        condition: and
+        words:
+          - "[core]"
+          - "repositoryformatversion"

@@ -1,0 +1,27 @@
+id: aws-keys-exposure
+info:
+  name: AWS Access Keys Exposure
+  author: reikageisme
+  severity: critical
+  description: Discovered exposed AWS IAM Access Keys which can be used to compromise the AWS infrastructure.
+  tags: aws,exposure,keys,cloud
+
+requests:
+  - method: GET
+    path: /
+    matchers:
+      - type: word
+        condition: or
+        words:
+          - "AKIA"
+          - "ASIA"
+  - method: GET
+    path: /.env
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        condition: and
+        words:
+          - "AWS_ACCESS_KEY_ID="
