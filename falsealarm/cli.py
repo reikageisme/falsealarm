@@ -70,7 +70,7 @@ def run_scan(
     random_agent: bool = typer.Option(False, "--random-agent", help="Use random User-Agent"),
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
-    format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/csv/html/txt [default: txt]"),
+    format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/csv/txt [default: txt]"),
     silent: bool = typer.Option(False, "--silent", help="Only show results"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show debug info"),
     resume: Optional[str] = typer.Option(None, "--resume", help="Resume scan by ID"),

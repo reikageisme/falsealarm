@@ -99,9 +99,6 @@ falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
 # Export results to TXT (Default)
 falsealarm -u example.com -A -o report.txt
 
-# Export HTML report
-falsealarm -u example.com -A -o report.html -f html
-
 # Export results to JSON
 falsealarm -u example.com -A -o results.json -f json
 
@@ -142,7 +139,7 @@ Proxy & Stealth:
 
 Output:
   -o, --output       Save output to file
-  -f, --format       Output format: table/json/csv/html/txt [default: txt]
+  -f, --format       Output format: table/json/csv/txt [default: txt]
   --silent           Only show results, no banner/progress
   -v, --verbose      Show debug information
 
