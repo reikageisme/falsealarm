@@ -64,40 +64,40 @@ pip install -r requirements.txt
 
 ```bash
 # Basic scan — all modules
-falsealarm -u example.com -A
+falsealarm scan -u example.com -A
 
 # DNS enumeration only
-falsealarm -u example.com -m dns
+falsealarm scan -u example.com -m dns
 
 # Quick scan (fast modules only)
-falsealarm -u example.com -q
+falsealarm scan -u example.com -q
 
 # With rate limiting and proxy
-falsealarm -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
+falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
 
 # Export results to JSON
-falsealarm -u example.com -A -o results.json -f json
+falsealarm scan -u example.com -A -o results.json -f json
 
 # Export HTML report
-falsealarm -u example.com -A -o report.html -f html
+falsealarm scan -u example.com -A -o report.html -f html
 
 # Resume a previous scan
-falsealarm --resume fa_20260721_204512
+falsealarm scan --resume fa_20260721_204512
 
 # List saved scans
 falsealarm list-scans
 
 # Silent mode (results only)
-falsealarm -u example.com -m dns --silent
+falsealarm scan -u example.com -m dns --silent
 
 # Verbose mode (debug info)
-falsealarm -u example.com -m dns -v
+falsealarm scan -u example.com -m dns -v
 ```
 
 ## ⚙️ CLI Options
 
 ```
-Usage: falsealarm [OPTIONS] -u <TARGET>
+Usage: falsealarm scan [OPTIONS] -u <TARGET>
 
 Scan Options:
   -u, --url          Target URL or domain [required]
