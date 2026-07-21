@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import json
 import time
+import os
 from typing import TYPE_CHECKING
+from rich.panel import Panel
+from rich.markdown import Markdown
 
 if TYPE_CHECKING:
     from falsealarm.core.engine import AsyncEngine
@@ -157,6 +160,42 @@ class ScanScheduler:
             f"Scan complete in {total_duration}s | "
             f"Scan ID: [bold]{self._scan_id}[/bold]"
         )
+
+        if self.config.ai_triage:
+            self.logger.module_header("AI Triage Analysis")
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                self.logger.error("GEMINI_API_KEY environment variable not set. Cannot run AI Triage.")
+            else:
+                self.logger.info("Initializing AI Provider (Gemini)...")
+                try:
+                    from falsealarm.core.ai.gemini_provider import GeminiProvider
+                    ai = GeminiProvider(api_key=api_key)
+                    self.logger.info("Sending scan results to AI for analysis. This may take a few seconds...")
+                    
+                    prompt = (
+                        "You are a professional Penetration Tester and Bug Bounty Hunter. "
+                        "I have provided you with a JSON dump of my reconnaissance and vulnerability scan results. "
+                        "Please analyze this data and provide a concise, highly actionable report in Markdown format. "
+                        "Focus on:\n"
+                        "1. The most critical vulnerabilities or exposed endpoints found.\n"
+                        "2. Potential attack vectors based on the technology stack or discovered paths.\n"
+                        "3. Recommendations for further manual testing.\n"
+                        "Do not just list the data back to me. Provide hacker-oriented insights."
+                    )
+                    
+                    analysis = await ai.analyze(data=all_results, prompt=prompt)
+                    
+                    if not self.logger.silent:
+                        self.logger.console.print("\n")
+                        self.logger.console.print(Panel(
+                            Markdown(analysis),
+                            title="[bold magenta]🧠 AI Vulnerability Assessment[/bold magenta]",
+                            border_style="magenta",
+                            padding=(1, 2)
+                        ))
+                except Exception as e:
+                    self.logger.error(f"AI Triage failed: {e}")
 
         return all_results
 

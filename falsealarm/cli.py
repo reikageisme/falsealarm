@@ -75,6 +75,7 @@ def run_scan(
     silent: bool = typer.Option(False, "--silent", help="Only show results"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show debug info"),
     resume: Optional[str] = typer.Option(None, "--resume", help="Resume scan by ID"),
+    ai_triage: bool = typer.Option(False, "--ai-triage", help="Enable AI-driven Triage and Vulnerability Analysis"),
     version: Optional[bool] = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version"),
 ):
     """
@@ -86,7 +87,7 @@ def run_scan(
                 url=url, module=module, all_modules=all_modules, quick=quick, threads=threads, rate=rate,
                 timeout=timeout, delay=delay, proxy=proxy, proxy_file=proxy_file, random_agent=random_agent,
                 wordlist=wordlist, output=output, format_type=format_type, silent=silent, verbose=verbose,
-                resume=resume
+                resume=resume, ai_triage=ai_triage
             )
         )
     except KeyboardInterrupt:
@@ -97,7 +98,7 @@ async def _run_scan(
     url: str, module: Optional[str], all_modules: bool, quick: bool, threads: int, rate: int,
     timeout: int, delay: float, proxy: Optional[str], proxy_file: Optional[str], random_agent: bool,
     wordlist: Optional[str], output: Optional[str], format_type: str, silent: bool, verbose: bool,
-    resume: Optional[str]
+    resume: Optional[str], ai_triage: bool
 ):
     logger = FalseAlarmLogger(silent=silent, verbose=verbose)
     
@@ -129,6 +130,7 @@ async def _run_scan(
         verbose=verbose,
         wordlist=wordlist,
         resume=resume,
+        ai_triage=ai_triage,
     )
     
     if not silent:

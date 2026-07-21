@@ -20,6 +20,7 @@ class ScanConfig:
     wordlist: str | None = None
     resume: str | None = None
     ports: str | None = None
+    ai_triage: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
