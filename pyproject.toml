@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [project.scripts]
-falsealarm = "falsealarm.cli:app"
+falsealarm = "falsealarm.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["falsealarm*"]

@@ -159,5 +159,11 @@ async def _run_scan(
     await engine.close()
     await db.close()
 
-if __name__ == "__main__":
+def main():
+    # Auto-inject 'scan' command for backward compatibility if the user just types `falsealarm -u ...`
+    if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "--help", "--version"]:
+        sys.argv.insert(1, "scan")
     app()
+
+if __name__ == "__main__":
+    main()
