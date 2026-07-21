@@ -63,7 +63,10 @@ pip install -r requirements.txt
 ## 💻 Usage
 
 ```bash
-# Basic scan — all modules
+# Basic scan — all modules (shorthand)
+falsealarm -u example.com -A
+
+# Or explicitly using the scan subcommand
 falsealarm scan -u example.com -A
 
 # DNS enumeration only
@@ -75,11 +78,14 @@ falsealarm scan -u example.com -q
 # With rate limiting and proxy
 falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
 
-# Export results to JSON
-falsealarm scan -u example.com -A -o results.json -f json
+# Export results to TXT (Default)
+falsealarm -u example.com -A -o report.txt
 
 # Export HTML report
-falsealarm scan -u example.com -A -o report.html -f html
+falsealarm -u example.com -A -o report.html -f html
+
+# Export results to JSON
+falsealarm -u example.com -A -o results.json -f json
 
 # Resume a previous scan
 falsealarm scan --resume fa_20260721_204512
@@ -87,17 +93,17 @@ falsealarm scan --resume fa_20260721_204512
 # List saved scans
 falsealarm list-scans
 
-# Silent mode (results only)
-falsealarm scan -u example.com -m dns --silent
+# Silent mode (save to file without printing to terminal)
+falsealarm -u example.com -m dns -o report.txt --silent
 
 # Verbose mode (debug info)
-falsealarm scan -u example.com -m dns -v
+falsealarm -u example.com -m dns -v
 ```
 
 ## ⚙️ CLI Options
 
 ```
-Usage: falsealarm scan [OPTIONS] -u <TARGET>
+Usage: falsealarm [scan] [OPTIONS] -u <TARGET>
 
 Scan Options:
   -u, --url          Target URL or domain [required]
@@ -118,7 +124,7 @@ Proxy & Stealth:
 
 Output:
   -o, --output       Save output to file
-  -f, --format       Output format: table/json/csv/html [default: table]
+  -f, --format       Output format: table/json/csv/html/txt [default: txt]
   --silent           Only show results, no banner/progress
   -v, --verbose      Show debug information
 
@@ -129,6 +135,36 @@ State:
 Info:
   -h, --help         Show help
   --version          Show version
+```
+
+## 🐍 Using as a Python Library
+
+FalseAlarm exposes its core components allowing you to build custom scripts or integrate it into other tools:
+
+```python
+import asyncio
+from falsealarm import AsyncEngine, ScanConfig, SubdomainModule, TechDetectModule
+
+async def main():
+    # Configure the scan
+    config = ScanConfig(
+        target="example.com",
+        modules=["subdomain", "tech"],
+        threads=20
+    )
+    
+    # Initialize engine
+    engine = AsyncEngine(config)
+    
+    # Run a specific module manually
+    tech_module = TechDetectModule(config, engine)
+    results = await tech_module.run()
+    
+    print(results)
+    await engine.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## 🏗️ Architecture
