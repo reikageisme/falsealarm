@@ -10,6 +10,10 @@ from falsealarm.core.logger import FalseAlarmLogger
 from falsealarm.core.scheduler import ScanScheduler
 from falsealarm.core.output import OutputManager
 from falsealarm.modules.dns_enum import DNSEnumModule
+from falsealarm.modules.subdomain import SubdomainModule
+from falsealarm.modules.httpprobe import HTTPProbeModule
+from falsealarm.modules.techdetect import TechDetectModule
+from falsealarm.modules.headers_ssl import HeadersSSLModule
 
 app = typer.Typer(
     add_completion=False, 
@@ -128,6 +132,10 @@ async def _run_scan(
     
     # Register modules
     scheduler.register_module(DNSEnumModule)
+    scheduler.register_module(SubdomainModule)
+    scheduler.register_module(HTTPProbeModule)
+    scheduler.register_module(TechDetectModule)
+    scheduler.register_module(HeadersSSLModule)
     
     scan_results = await scheduler.run()
     

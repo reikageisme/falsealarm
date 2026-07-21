@@ -29,11 +29,11 @@
 | Module | Description | Status |
 |--------|-------------|--------|
 | `dns` | DNS Record Enumeration (A, AAAA, MX, NS, TXT, SOA, SRV, CAA, AXFR, SPF, DKIM, DMARC) | ✅ |
-| `subdomain` | Subdomain Enumeration (crt.sh, DNS brute-force) | 🔜 Phase 2 |
-| `httpprobe` | HTTP Probing + Similarity Hashing for false positive detection | 🔜 Phase 2 |
-| `techdetect` | Technology Detection (CMS, frameworks, WAF, CDN) | 🔜 Phase 2 |
-| `headers` | Security Headers Analysis | 🔜 Phase 2 |
-| `ssl` | SSL/TLS Certificate & Cipher Analysis | 🔜 Phase 2 |
+| `subdomain` | Subdomain Enumeration (crt.sh, DNS brute-force) | ✅ |
+| `httpprobe` | HTTP Probing + Similarity Hashing for false positive detection | ✅ |
+| `techdetect` | Technology Detection (CMS, frameworks, WAF, CDN) | ✅ |
+| `headers` | Security Headers Analysis | ✅ |
+| `ssl` | SSL/TLS Certificate & Cipher Analysis | ✅ |
 | `dirfuzz` | Directory/Path Bruteforcing | 🔜 Phase 3 |
 | `js_analysis` | JavaScript AST Analysis (API endpoints, secrets) | 🔜 Phase 3 |
 | `wayback` | Wayback Machine URL Discovery | 🔜 Phase 3 |
