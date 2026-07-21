@@ -55,6 +55,7 @@
 | `cors` | CORS Misconfiguration Detection | ✅ |
 | `portscan` | Async TCP Port Scanner | ✅ |
 | `websocket` | WebSocket Discovery & Analysis | ✅ |
+| `vulnscan` | YAML-based Vulnerability Detection Engine (Next-Gen) | ✅ |
 
 ## 🚀 Installation
 

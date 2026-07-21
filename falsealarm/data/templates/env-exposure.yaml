@@ -1,0 +1,30 @@
+id: env-file-exposure
+info:
+  name: ".env file exposure"
+  author: ReiKage
+  severity: high
+  description: "Detects exposed .env files that may contain sensitive credentials, API keys, and configuration secrets."
+  tags:
+    - exposure
+    - config
+    - sensitive
+
+requests:
+  - method: GET
+    path: "/.env"
+    headers:
+      Accept: "*/*"
+
+    matchers:
+      - type: status
+        condition: and
+        status:
+          - 200
+
+      - type: word
+        condition: and
+        words:
+          - "DB_PASSWORD"
+          - "APP_KEY"
+          - "AWS_ACCESS_KEY_ID"
+          - "DATABASE_URL"

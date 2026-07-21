@@ -9,7 +9,7 @@ description = "Async Web Reconnaissance Engine for Pentesters & Bug Bounty Hunte
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
-authors = [{name = "FalseAlarm Team"}]
+authors = [{name = "ReiKage"}]
 keywords = ["pentesting", "reconnaissance", "security", "bug-bounty"]
 classifiers = [
     "Development Status :: 4 - Beta",

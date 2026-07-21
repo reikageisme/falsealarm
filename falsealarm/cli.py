@@ -23,6 +23,7 @@ from falsealarm.modules import (
     CORSModule,
     PortScanModule,
     WebSocketModule,
+    VulnScanModule,
 )
 
 app = typer.Typer(
@@ -152,6 +153,7 @@ async def _run_scan(
     scheduler.register_module(CORSModule)
     scheduler.register_module(PortScanModule)
     scheduler.register_module(WebSocketModule)
+    scheduler.register_module(VulnScanModule)
     
     scan_results = await scheduler.run()
     

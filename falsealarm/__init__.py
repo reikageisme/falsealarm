@@ -4,7 +4,7 @@ Layer 7 Intelligence & Attack Surface Mapping Framework.
 """
 
 __version__ = "1.0.0-dev"
-__author__ = "ReiKage & Contributors"
+__author__ = "ReiKage"
 __license__ = "MIT"
 __codename__ = "Phantom Strike"
 

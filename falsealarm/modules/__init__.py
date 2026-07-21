@@ -12,6 +12,7 @@ from .wayback import WaybackModule
 from .cors import CORSModule
 from .portscan import PortScanModule
 from .websocket import WebSocketModule
+from .vulnscan import VulnScanModule
 
 __all__ = [
     "BaseModule",
@@ -26,4 +27,5 @@ __all__ = [
     "CORSModule",
     "PortScanModule",
     "WebSocketModule",
+    "VulnScanModule",
 ]
