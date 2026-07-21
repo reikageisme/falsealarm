@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source srcset="assets/falsealarm.gif" media="(prefers-color-scheme: dark)">
-    <source srcset="assets/falsealarm.gif" media="(prefers-color-scheme: light)">
-    <img src="assets/falsealarm.gif" alt="falsealarm Logo" width="600" style="image-rendering: pixelated;">
+    <source srcset="assets/Falsealarm.gif" media="(prefers-color-scheme: dark)">
+    <source srcset="assets/Falsealarm.gif" media="(prefers-color-scheme: light)">
+    <img src="assets/Falsealarm.gif" alt="Falsealarm Logo" width="600" style="image-rendering: pixelated;">
   </picture>
 </p>
 <p align="center">
