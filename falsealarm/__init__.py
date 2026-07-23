@@ -15,7 +15,7 @@ def print_banner(console=None, show_help=False) -> None:
     """
     import platform
     import textwrap
-    from rich.console import Console
+    from rich.console import Console, Group
     from rich.panel import Panel
     from rich.text import Text
     from rich.align import Align
@@ -23,10 +23,6 @@ def print_banner(console=None, show_help=False) -> None:
     
     if console is None:
         console = Console()
-        
-    # Force a wider console if we are showing side-by-side help to prevent squishing
-    if show_help and console.width < 160:
-        console = Console(width=160)
         
     banner_ascii = textwrap.dedent(r"""
         
@@ -40,7 +36,7 @@ def print_banner(console=None, show_help=False) -> None:
     # Add a newline at the beginning explicitly to prevent terminal line-height clipping
     banner_ascii = "\n" + banner_ascii
 
-    # Set overflow="ignore" to prevent the '...' truncation on the ASCII art
+    # overflow="ignore" ensures ASCII art isn't truncated with '...'
     styled_banner = Text(banner_ascii, style="bold bright_red", overflow="ignore", no_wrap=True)
     
     metadata = f"""
@@ -82,15 +78,21 @@ def print_banner(console=None, show_help=False) -> None:
         
         right_content = Align.left(Text.from_markup(cheat_sheet))
         
-        # Use a borderless table to force side-by-side layout
-        grid = Table.grid(expand=True, padding=(0, 4))
-        # Ensure left column never wraps or truncates
-        grid.add_column(justify="center", no_wrap=True)
-        # Right column can wrap if absolutely necessary
-        grid.add_column(justify="left")
-        grid.add_row(left_content, right_content)
-        
-        final_content = grid
+        # Responsive layout: If terminal is too narrow, stack vertically instead of side-by-side
+        if console.width < 140:
+            final_content = Group(
+                left_content,
+                Text("\n"),
+                Align.center(right_content)
+            )
+        else:
+            # Terminal is wide enough, use a borderless table for side-by-side layout
+            grid = Table.grid(expand=True, padding=(0, 4))
+            grid.add_column(justify="center", no_wrap=True)
+            grid.add_column(justify="left")
+            grid.add_row(left_content, right_content)
+            final_content = grid
+            
         expand_panel = True
     else:
         final_content = left_content
