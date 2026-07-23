@@ -7,7 +7,7 @@
 
   <br/>
   <h1>🛡️ FalseAlarm: Advanced Async Web Reconnaissance Framework</h1>
-  <p><strong>An out-of-the-box, Polyglot (Python + Go) & AI-Ready Attack Surface Mapping Engine.</strong></p>
+  <p><strong>An out-of-the-box, Polyglot (Python + Go) & AI-Ready Attack Surface Mapping Engine for Modern Hackers.</strong></p>
 
   <p>
     <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/badge/pypi-v1.0.0--dev-2563eb?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI version" /></a>
@@ -20,14 +20,16 @@
   </p>
 
   <p>
-    <em>Developed by <a href="https://github.com/reikageisme">ReiKage (reikageisme)</a> & The Open Source InfoSec Community.</em>
+    <em>Developed with rigorous standards by <a href="https://github.com/reikageisme">ReiKage (reikageisme)</a> & The Open Source InfoSec Community.</em>
   </p>
 
   <a href="#-philosophy--the-problem-it-solves">Philosophy</a> •
+  <a href="#-quickstart">Quickstart</a> •
   <a href="#-core-features">Features</a> •
   <a href="#-module-ecosystem">Modules</a> •
   <a href="#-installation">Installation</a> •
-  <a href="#-usage-guide">Usage</a> •
+  <a href="#-environment-variables">Environment</a> •
+  <a href="#-usage-guide">Usage Guide</a> •
   <a href="#-ai-triage-integration">AI Triage</a> •
   <a href="#-contributing">Contributing</a> •
   <a href="#-license">License</a>
@@ -40,6 +42,61 @@
 Traditional scanning tools are inherently flawed for modern web architectures. They operate synchronously, consume excessive memory, and lack the heuristic intelligence required to bypass Next-Gen Web Application Firewalls (WAFs). 
 
 **FalseAlarm** was engineered from the ground up to solve this. By combining a Python `asyncio` orchestrator with a high-performance **Go (fasthttp)** worker engine, dynamic YAML vulnerability templates, and intelligent plugin auto-discovery, FalseAlarm allows Pentesters and Bug Bounty Hunters to map vast attack surfaces at blistering speeds with streaming real-time NDJSON feedback.
+
+Accordingly, **Human-In-The-Loop (HITL)** control is a core design principle of FalseAlarm. Operators retain granular control during execution with non-destructive graceful handling across all async subprocesses via `Ctrl+C` interrupt handlers.
+
+---
+
+## 🚀 Quickstart
+
+To launch **FalseAlarm** after installation, simply type `falsealarm` or run a targeted scan from your CLI:
+
+```text
+┌──(.venv)(tanh㉿kali)-[~/falsealarm]
+└─$ falsealarm scan -u http://google.com/FUZZ -m dirfuzz
+
+╭───────────────────  Layer 7 Reconnaissance Engine  ───────────────────╮
+│ ___________        .__             _____  .__                         │
+│ \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____   │
+│  |    __) \__  \   |  |  /  ___/ \   __\  |  | \__  \\_  __ \/     \  │
+│  |     \   / __ \_ |  |__\___ \   |  |    |  |__/ __ \|  | \/  Y Y  \ │
+│  \___  /  (____  / |____/____  >  |__|    |____(____  /__|  |__|_|  / │
+│      \/        \/            \/                     \/            \/  │
+│                                                                       │
+│ v1.0.0-dev | Codename: Phantom Strike                                 │
+│ Asynchronous I/O Engine Active | Python 3.14.6                        │
+│ Developed by reikageisme                                              │
+╰─────────────────────────  Deep InfoSec Lab  ──────────────────────────╯
+⚠ Legal: Only use on systems you have permission to test.
+
+[20:44:18] [*] Starting scan: http://google.com/FUZZ
+[20:44:18] [*] 🚀 Engaging Go-based High Speed Fuzzing Engine...
+[20:44:19] [+] Found: http://google.com/js [Status: 301, Size: 222]
+[20:44:20] [+] Found: http://google.com/robots.txt [Status: 301, Size: 230]
+```
+
+The cybernetic ASCII banner rendered in bold bright red using Rich styling welcomes operators into a high-throughput reconnaissance environment.
+
+---
+
+## ⚙️ Environment Variables
+
+For leveraging private AI triage models and custom API endpoints, FalseAlarm automatically reads your configuration from `.env`.
+
+Simply create or update your `.env` file in the project root:
+
+```bash
+# Create local .env file
+cat << 'EOF' > .env
+OPENAI_API_KEY="sk-1234567890abcdef1234567890abcdef"
+ANTHROPIC_API_KEY=""
+OLLAMA_HOST="http://localhost:11434"
+PROMPT_TOOLKIT_NO_CPR=1
+CAI_STREAM=false
+EOF
+```
+
+---
 
 ## ⚡ Core Features
 
@@ -156,11 +213,6 @@ falsealarm list-scans
 ## 🤖 AI Triage Integration
 
 FalseAlarm introduces an AI Triage layer. By hooking into Gemini / OpenAI / Anthropic LLMs, the framework automatically analyzes scan outputs, filters out noise, and highlights chained exploit paths.
-
-**Setup `.env` configuration:**
-```bash
-echo -e 'OPENAI_API_KEY="sk-1234"\nANTHROPIC_API_KEY=""\nOLLAMA=""\nPROMPT_TOOLKIT_NO_CPR=1\nCAI_STREAM=false' > .env
-```
 
 **Execute scan with AI Triage:**
 ```bash
