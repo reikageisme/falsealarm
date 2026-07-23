@@ -99,6 +99,7 @@ async def _run_scan(
     wordlist: Optional[str], output: Optional[str], format_type: str, silent: bool, verbose: bool,
     resume: Optional[str], ai_triage: bool
 ):
+    from falsealarm.core.utils import sanitize_target
     logger = FalseAlarmLogger(silent=silent, verbose=verbose)
     
     if not silent:
@@ -107,17 +108,28 @@ async def _run_scan(
         
     modules_list = []
     if module:
-        modules_list = [m.strip() for m in module.split(',')]
+        modules_list = [sanitize_target(m.strip()) for m in module.split(',') if sanitize_target(m.strip())]
     elif all_modules:
         modules_list = ["all"]
     elif quick:
         modules_list = ["quick"]
         
+    targets = []
+    if url:
+        targets.append(sanitize_target(url))
+    if target_list:
+        try:
+            with open(target_list, 'r') as f:
+                targets.extend([sanitize_target(line.strip()) for line in f if sanitize_target(line.strip())])
+        except Exception as e:
+            typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
+            sys.exit(1)
+
     if config_file:
         try:
             config = ScanConfig.from_file(config_file, profile)
             # Override YAML config with explicit CLI flags if provided
-            if url: config.target = url
+            if url: config.target = sanitize_target(url)
             if target_list: config.targets_file = target_list
             if modules_list: config.modules = modules_list
             if output: config.output = output
@@ -266,14 +278,15 @@ def build_engine():
         sys.exit(1)
 
 def main():
+    # Print the extended cheat-sheet banner if help is requested or no args provided
+    is_help = len(sys.argv) == 1 or "--help" in sys.argv or "-h" in sys.argv
+    if is_help:
+        from falsealarm import print_banner
+        print_banner(show_help=True)
+        
     # Auto-inject 'scan' command for backward compatibility if the user just types `falsealarm -u ...`
     if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "build-engine", "--help", "-h", "--version"]:
         sys.argv.insert(1, "scan")
-        
-    # Print the extended cheat-sheet banner if help is requested or no args provided
-    if len(sys.argv) == 1 or "--help" in sys.argv or "-h" in sys.argv:
-        from falsealarm import print_banner
-        print_banner(show_help=True)
         
     app()
 

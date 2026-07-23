@@ -72,12 +72,15 @@ def print_banner(console=None, show_help=False) -> None:
         right_content = Text.from_markup(cheat_sheet)
         
         grid = Table.grid(expand=True, padding=(0, 4))
-        grid.add_column(justify="center", no_wrap=True)
+        # Cấp độ rộng tối thiểu (min_width) để bảo vệ form của Logo không bị bóp nghẹt
+        grid.add_column(justify="center", no_wrap=True, min_width=65)
+        # Cột hướng dẫn được phép chiếm toàn bộ không gian còn lại
         grid.add_column(justify="left", ratio=1)
         grid.add_row(left_content, right_content)
         
         final_content = grid
-        expand_panel = False
+        # Đặt True để Panel giãn hết chiều ngang, cấp đủ không gian cho chữ
+        expand_panel = True
     else:
         final_content = Align.center(left_content)
         expand_panel = False

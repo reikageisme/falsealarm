@@ -23,6 +23,19 @@ def normalize_url(url: str) -> str:
         return f"https://{url}"
     return url
 
+def sanitize_target(target: str) -> str:
+    """
+    Sanitize target string to prevent Terminal Escape Injection 
+    and HTTP injection attacks by removing all non-printable 
+    control characters and ANSI escape sequences.
+    """
+    if not target:
+        return ""
+    # Remove all ANSI escape sequences and control characters
+    # \x1B is ESC. \x00-\x1F and \x7F-\x9F are control codes.
+    ansi_escape = re.compile(r'(?:\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))|[\x00-\x1F\x7F-\x9F]')
+    return ansi_escape.sub('', str(target)).strip()
+
 def extract_domain(url: str) -> str:
     """Extract domain from a URL."""
     try:
