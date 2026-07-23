@@ -29,6 +29,7 @@
   <a href="#-installation">Installation</a> •
   <a href="#-usage-guide">Usage</a> •
   <a href="#-ai-triage-integration">AI Triage</a> •
+  <a href="#-contributing">Contributing</a> •
   <a href="#-license">License</a>
 </div>
 
@@ -203,11 +204,20 @@ if __name__ == "__main__":
 
 ---
 
+## 🤝 Contributing
+
+We welcome contributions from the InfoSec community. Whether it's adding new YAML vulnerability templates, optimizing the async core, or fixing bugs, please review our [CONTRIBUTING.md](CONTRIBUTING.md) guidelines before submitting a Pull Request.
+
+### 📜 Code of Conduct
+Please note that this project is released with a Contributor Code of Conduct. By participating in this project you agree to abide by its terms. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+---
+
 ## 📜 License
 
 Copyright (c) 2026 **ReiKage (`reikageisme`)** & FalseAlarm Security Engine Contributors.
 
-This project is licensed under the **MIT License**. Permission is hereby granted to use, copy, modify, merge, publish, distribute, and sublicense this software for any lawful security research or penetration testing purpose.
+This project is a combination of open-source components under the **MIT License** (see [LICENSE-MIT](LICENSE-MIT)) and framework additions licensed under the **Research & Security Assessment License** (see [LICENSE](LICENSE)).
 
 ---
 
