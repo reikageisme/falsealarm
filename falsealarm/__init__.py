@@ -29,6 +29,7 @@ def print_banner(console=None, show_help=False) -> None:
         console = Console(width=130)
         
     banner_ascii = textwrap.dedent(r"""
+        
         ___________        .__             _____  .__                        
         \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____  
          |    __) \__  \   |  |  /  ___/ \   __\  |  | \__  \\_  __ \/     \ 
@@ -36,7 +37,9 @@ def print_banner(console=None, show_help=False) -> None:
          \___  /  (____  / |____/____  >  |__|    |____(____  /__|  |__|_|  /
              \/        \/            \/                     \/            \/ 
     """).strip('\n')
-    
+    # Add a newline at the beginning explicitly to prevent terminal line-height clipping
+    banner_ascii = "\n" + banner_ascii
+
     styled_banner = Text(banner_ascii, style="bold bright_red")
     
     metadata = f"""
@@ -66,8 +69,14 @@ def print_banner(console=None, show_help=False) -> None:
             falsealarm scan -iL targets.txt -q
             falsealarm scan -u 192.168.1.0/24 -m portscan,httpprobe
             
-            [bold yellow]# 4. Quick mode (Bypasses heavy fuzzing)[/bold yellow]
-            falsealarm scan -u example.com -q
+            [bold yellow]# 4. Stealth & High-Speed Fuzzing[/bold yellow]
+            falsealarm scan -u example.com -A -r 15 --proxy socks5://127.0.0.1:9050
+            
+            [bold yellow]# 5. Load scan parameters from a YAML profile[/bold yellow]
+            falsealarm scan -c profile.yaml -p stealth
+            
+            [bold yellow]# 6. AI Triage Integration[/bold yellow]
+            falsealarm scan -u example.com -A --ai-triage
         """).strip('\n')
         
         right_content = Align.left(Text.from_markup(cheat_sheet))
