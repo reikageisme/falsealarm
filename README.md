@@ -88,11 +88,9 @@ Simply create or update your `.env` file in the project root:
 ```bash
 # Create local .env file
 cat << 'EOF' > .env
-OPENAI_API_KEY="sk-1234567890abcdef1234567890abcdef"
-ANTHROPIC_API_KEY=""
-OLLAMA_HOST="http://localhost:11434"
-PROMPT_TOOLKIT_NO_CPR=1
-CAI_STREAM=false
+GEMINI_API_KEY="your_google_gemini_api_key_here"
+OPENAI_API_KEY="your_openai_api_key_here"
+ANTHROPIC_API_KEY="your_anthropic_api_key_here"
 EOF
 ```
 
