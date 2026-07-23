@@ -25,7 +25,6 @@ def print_banner(console=None, show_help=False) -> None:
         console = Console()
         
     banner_ascii = textwrap.dedent(r"""
-        
         ___________        .__             _____  .__                        
         \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____  
          |    __) \__  \   |  |  /  ___/ \   __\  |  | \__  \\_  __ \/     \ 
@@ -33,10 +32,8 @@ def print_banner(console=None, show_help=False) -> None:
          \___  /  (____  / |____/____  >  |__|    |____(____  /__|  |__|_|  /
              \/        \/            \/                     \/            \/ 
     """).strip('\n')
-    # Add a newline at the beginning explicitly to prevent terminal line-height clipping
-    banner_ascii = "\n" + banner_ascii
-
-    # overflow="ignore" ensures ASCII art isn't truncated with '...'
+    
+    # overflow="ignore" and no_wrap=True ensures ASCII art isn't truncated with '...' or broken
     styled_banner = Text(banner_ascii, style="bold bright_red", overflow="ignore", no_wrap=True)
     
     metadata = f"""
@@ -45,14 +42,10 @@ def print_banner(console=None, show_help=False) -> None:
 [dim]Developed by {__author__}[/dim]
     """
     
-    styled_metadata = Text.from_markup(metadata, justify="center")
-    
-    full_content = Text()
-    full_content.append(styled_banner)
-    full_content.append("\n\n")
-    full_content.append(styled_metadata)
-    
-    left_content = Align.center(full_content)
+    left_content = Text()
+    left_content.append(styled_banner)
+    left_content.append("\n\n")
+    left_content.append(Text.from_markup(metadata, justify="center"))
 
     if show_help:
         cheat_sheet = textwrap.dedent("""
@@ -76,26 +69,17 @@ def print_banner(console=None, show_help=False) -> None:
             falsealarm scan -u example.com -A --ai-triage
         """).strip('\n')
         
-        right_content = Align.left(Text.from_markup(cheat_sheet))
+        right_content = Text.from_markup(cheat_sheet)
         
-        # Responsive layout: If terminal is too narrow, stack vertically instead of side-by-side
-        if console.width < 140:
-            final_content = Group(
-                left_content,
-                Text("\n"),
-                Align.center(right_content)
-            )
-        else:
-            # Terminal is wide enough, use a borderless table for side-by-side layout
-            grid = Table.grid(expand=True, padding=(0, 4))
-            grid.add_column(justify="center", no_wrap=True)
-            grid.add_column(justify="left")
-            grid.add_row(left_content, right_content)
-            final_content = grid
-            
-        expand_panel = True
+        grid = Table.grid(expand=True, padding=(0, 4))
+        grid.add_column(justify="center", no_wrap=True)
+        grid.add_column(justify="left", ratio=1)
+        grid.add_row(left_content, right_content)
+        
+        final_content = grid
+        expand_panel = False
     else:
-        final_content = left_content
+        final_content = Align.center(left_content)
         expand_panel = False
     
     panel = Panel(
