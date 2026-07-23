@@ -1,256 +1,220 @@
-<p align="center">
+<div align="center">
   <picture>
     <source srcset="assets/Falsealarm.png" media="(prefers-color-scheme: dark)">
     <source srcset="assets/Falsealarm.png" media="(prefers-color-scheme: light)">
     <img src="assets/Falsealarm.png" alt="FalseAlarm Logo" width="600" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;">
   </picture>
-</p>
 
-<p align="center">
-  <strong>An out-of-the-box, AI-Ready Reconnaissance Framework for Modern Hackers.</strong><br/>
-  <sub>Traditional scanning tools are slow, synchronous, and easily blocked. FalseAlarm utilizes asynchronous I/O, dynamic YAML Vuln templates, and intelligent module scheduling to blast through targets with immense speed while evading WAFs. Built for Pentesters, Bug Bounty Hunters & CTF Players.</sub>
-</p>
+  <br/>
+  <h1>🛡️ FalseAlarm: Advanced Async Web Reconnaissance Framework</h1>
+  <p><strong>An out-of-the-box, Polyglot (Python + Go) & AI-Ready Attack Surface Mapping Engine.</strong></p>
 
-<p align="center">
-  Developed by <a href="https://github.com/reikageisme">reikageisme</a>
-</p>
+  <p>
+    <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/badge/pypi-v1.0.0--dev-2563eb?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI version" /></a>
+    <a href="https://github.com/reikageisme/falsealarm/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-16a34a.svg?style=for-the-badge" alt="license" /></a>
+    <a href="https://github.com/reikageisme/falsealarm/stargazers"><img src="https://img.shields.io/github/stars/reikageisme/falsealarm?style=for-the-badge&color=eab308" alt="stars" /></a>
+    <a href="https://github.com/reikageisme/falsealarm/network/members"><img src="https://img.shields.io/github/forks/reikageisme/falsealarm?style=for-the-badge&color=blue" alt="forks" /></a>
+    <a href="https://github.com/reikageisme/falsealarm/issues"><img src="https://img.shields.io/github/issues/reikageisme/falsealarm?style=for-the-badge&color=e67e22" alt="open issues" /></a>
+    <img src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python Version">
+    <img src="https://img.shields.io/badge/go-1.20+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version">
+  </p>
 
-<p align="center">
-  <a href="#-installation">Quick Start</a> •
-  <a href="#-usage">CLI Usage</a> •
-  <a href="#-modules">Modules</a> •
-  <a href="#-using-as-a-python-library">Python API</a>
-</p>
+  <p>
+    <em>Developed by <a href="https://github.com/reikageisme">ReiKage (reikageisme)</a> & The Open Source InfoSec Community.</em>
+  </p>
 
-<p align="center">
-  <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/badge/pypi-v1.0.0--dev-2563eb?style=flat-square" alt="PyPI version" /></a>
-  <a href="https://github.com/reikageisme/falsealarm/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-16a34a.svg?style=flat-square" alt="license" /></a>
-  <a href="https://github.com/reikageisme/falsealarm/stargazers"><img src="https://img.shields.io/github/stars/reikageisme/falsealarm?style=flat-square&color=eab308" alt="stars" /></a>
-  <a href="https://github.com/reikageisme/falsealarm/issues"><img src="https://img.shields.io/github/issues/reikageisme/falsealarm?style=flat-square&color=e67e22" alt="open issues" /></a>
-  <a href="https://github.com/reikageisme/falsealarm/pulls"><img src="https://img.shields.io/github/issues-pr/reikageisme/falsealarm?style=flat-square&color=9b59b6" alt="open PRs" /></a>
-  <img src="https://img.shields.io/badge/python-3.10+-blue?style=flat-square" alt="Python Version">
-</p>
+  <a href="#-philosophy--the-problem-it-solves">Philosophy</a> •
+  <a href="#-core-features">Features</a> •
+  <a href="#-module-ecosystem">Modules</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-usage-guide">Usage</a> •
+  <a href="#-ai-triage-integration">AI Triage</a> •
+  <a href="#-license">License</a>
+</div>
 
 ---
 
-## ⚡ Features
+## 🎯 Philosophy & The Problem It Solves
 
-- **Full Async Engine** — Built on `aiohttp` + `asyncio` for maximum throughput
-- **Token Bucket Rate Limiting** — Millisecond-precision rate control to avoid overloading targets
-- **SQLite State Management** — Pause/resume scans, query historical results
-- **Proxy Rotation** — HTTP and SOCKS5 proxy support with automatic health checks
-- **Request Fingerprinting** — Randomized User-Agent and headers
-- **Beautiful CLI** — Rich terminal UI with progress bars, colored output, and nmap-style flags
-- **Multiple Export Formats** — JSON, CSV, and styled HTML reports
+Traditional scanning tools are inherently flawed for modern web architectures. They operate synchronously, consume excessive memory, and lack the heuristic intelligence required to bypass Next-Gen Web Application Firewalls (WAFs). 
 
-## 📦 Modules
+**FalseAlarm** was engineered from the ground up to solve this. By combining a Python `asyncio` orchestrator with a high-performance **Go (fasthttp)** worker engine, dynamic YAML vulnerability templates, and intelligent plugin auto-discovery, FalseAlarm allows Pentesters and Bug Bounty Hunters to map vast attack surfaces at blistering speeds with streaming real-time NDJSON feedback.
 
-| Module | Description | Status |
-|--------|-------------|--------|
-| `dns` | DNS Record Enumeration (A, AAAA, MX, NS, TXT, SOA, SRV, CAA, AXFR, SPF, DKIM, DMARC) | ✅ |
-| `subdomain` | Subdomain Enumeration (crt.sh, DNS brute-force) | ✅ |
-| `httpprobe` | HTTP Probing + Similarity Hashing for false positive detection | ✅ |
-| `techdetect` | Technology Detection (CMS, frameworks, WAF, CDN) | ✅ |
-| `headers` | Security Headers Analysis | ✅ |
-| `ssl` | SSL/TLS Certificate & Cipher Analysis | ✅ |
-| `dirfuzz` | Directory/Path Bruteforcing | ✅ |
-| `js_analysis` | JavaScript AST Analysis (API endpoints, secrets) | ✅ |
-| `wayback` | Wayback Machine URL Discovery | ✅ |
-| `cors` | CORS Misconfiguration Detection | ✅ |
-| `portscan` | Async TCP Port Scanner | ✅ |
-| `websocket` | WebSocket Discovery & Analysis | ✅ |
-| `vulnscan` | YAML-based Vulnerability Detection Engine (Next-Gen) | ✅ |
+## ⚡ Core Features
 
-## 🚀 Installation
+### 🚀 Polyglot & High-Performance Engine
+* **Python Orchestrator + Native Go Engine:** High-speed directory and parameter fuzzing powered by `fasthttp` in Go, with real-time NDJSON line-by-line streaming.
+* **Full Asynchronous I/O:** Built on `aiohttp` and `asyncio`, capable of sustaining thousands of concurrent connections with minimal CPU footprint.
+* **Token Bucket Rate Limiting:** Millisecond-precision traffic control with automatic HTTP 429 backoff handling.
+* **Auto-Discovery Plugin Architecture:** Drop any custom `.py` module inheriting `BaseModule` into `falsealarm/modules/` for instant execution without touching core code.
 
+### 🕵️‍♂️ Stealth & Evasion
+* **Proxy Orchestration:** Native support for chained HTTP and SOCKS5 proxies (e.g., Tor network) with automatic node health checks.
+* **Dynamic Fingerprinting:** Automated rotation of `User-Agent`, TLS handshakes, and HTTP headers to spoof legitimate traffic profiles.
+* **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
+
+### 🧠 Intelligence & State Management
+* **Multi-Target & CIDR Support:** Scan individual URLs (`-u`), input lists (`-iL targets.txt`), or full IP network blocks (`192.168.1.0/24`).
+* **YAML Configuration Profiles:** Save and reuse scan presets (`falsealarm scan -c profile.yaml -p stealth`).
+* **AI-Ready Triage:** Direct integration with LLMs (Gemini / Anthropic / OpenAI) to automatically parse scan results and prioritize high-impact vulnerabilities.
+* **SQLite State Tracking:** Non-blocking WAL-mode SQLite database with automatic retry timeouts for scan history and state persistence.
+
+---
+
+## 🧩 Module Ecosystem
+
+FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Each component can run in isolation or orchestrated together via the `-A` (All) flag.
+
+| Module Core | Tactical Capability | OPSEC Level | Status |
+|-------------|---------------------|-------------|:------:|
+| `dns` | Deep Record Enumeration (A, AAAA, MX, NS, TXT, SOA, AXFR, SPF, DMARC) | Passive/Active | ✅ |
+| `subdomain` | Multi-source Subdomain Enumeration (crt.sh, TLS certs, DNS brute) | Active | ✅ |
+| `httpprobe` | Liveness Probing + Similarity Hashing for false positive reduction | Active | ✅ |
+| `techdetect` | Fingerprinting (CMS, Frameworks, WAF, CDN) via Headers & DOM | Active | ✅ |
+| `dirfuzz` | Polyglot (Go + Python) High-Speed Path/Directory Fuzzing (NDJSON Streaming) | Aggressive | ✅ |
+| `js_analysis` | JavaScript AST Parsing for hidden API endpoints & hardcoded secrets | Active | ✅ |
+| `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | ✅ |
+| `portscan` | Async TCP/UDP Port Scanner (Nmap alternative for L7 chains) | Aggressive | ✅ |
+| `websocket` | WebSocket (WS/WSS) Discovery & Message Fuzzing | Active | ✅ |
+| `vulnscan` | Next-Gen YAML-based Vulnerability Detection Engine (CVEs, Cloud Keys, Misconfigs) | Aggressive | ✅ |
+
+---
+
+## 📦 Installation
+
+FalseAlarm is designed to be deployed rapidly across diverse penetration testing environments.
+
+### Option 1: Standard Development Install (Recommended)
 ```bash
-# 1. Clone the repository
 git clone https://github.com/reikageisme/falsealarm.git
 cd falsealarm
-
-# 2. Install in development mode
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 
-# 3. (Optional but Recommended) Compile Go Engines for maximum speed
-# Requires Go to be installed (apt install golang)
-falsealarm build-engine
-
-# (Optional) Install requirements directly
-pip install -r requirements.txt
+# Compile high-speed Go Fuzzing engine
+python -m falsealarm build-engine
 ```
 
-### 🔄 Updating
-If you already have FalseAlarm installed and want to fetch the latest features without deleting the folder, run:
+### Option 2: Isolated Global Install (via pipx)
 ```bash
-cd falsealarm
-git pull origin main
-pip install -e .
+pipx install git+https://github.com/reikageisme/falsealarm.git
 ```
 
-## 🧠 AI Configuration
-To unlock the true power of **AI Triage** (Milestone 3), you need to provide a Google Gemini API Key. You can easily do this by creating a `.env` file in your working directory. 
-
-Run the following command to generate the `.env` file:
+### Option 3: Docker Deployment
 ```bash
-echo -e 'GEMINI_API_KEY="your_api_key_here"' > .env
+docker pull reikageisme/falsealarm:latest
+docker run -it --rm reikageisme/falsealarm scan -u example.com -A
 ```
-FalseAlarm will automatically detect and load this key during runtime.
 
-## 💻 Usage
+---
 
+## 💻 Usage Guide
+
+The FalseAlarm CLI is built for speed and intuition.
+
+### 🔍 Standard Reconnaissance
 ```bash
-# Basic scan — all modules (shorthand)
-falsealarm -u example.com -A
-
-# Or explicitly using the scan subcommand
+# 1. Comprehensive mapping (All modules)
 falsealarm scan -u example.com -A
 
-# DNS enumeration only
-falsealarm scan -u example.com -m dns
+# 2. Targeted modular scan (DNS and Tech only)
+falsealarm scan -u example.com -m dns,techdetect
 
-# Quick scan (fast modules only)
+# 3. Multi-target file or CIDR range scan
+falsealarm scan -iL targets.txt -q
+falsealarm scan -u 192.168.1.0/24 -m portscan,httpprobe
+
+# 4. Quick mode (Bypasses heavy fuzzing for rapid overview)
 falsealarm scan -u example.com -q
+```
 
-# With rate limiting and proxy
-falsealarm scan -u example.com -A -r 10 --proxy socks5://127.0.0.1:9050
+### 🥷 Stealth & High-Speed Fuzzing
+```bash
+# Rate limited with Tor network proxy and randomized headers
+falsealarm scan -u example.com -A -r 15 -t 20 --proxy socks5://127.0.0.1:9050 --random-agent
 
-# High-Speed Directory Fuzzing (Uses Go Engine if compiled)
-falsealarm -u example.com/FUZZ -m dirfuzz
+# High-intensity Go-accelerated Directory Fuzzing
+falsealarm scan -u http://example.com/FUZZ -m dirfuzz -t 100 -w common.txt
+```
 
-# Vulnerability Scanning using YAML Templates
-falsealarm scan -u example.com -m vulnscan
+### 📊 Data Management & Profiles
+```bash
+# Load scan parameters from a YAML profile
+falsealarm scan -c profile.yaml -p stealth
 
-# Run multiple modules and execute an AI Triage analysis at the end!
-falsealarm -u example.com -m dns,vulnscan --ai-triage
+# Export results to JSON for CI/CD pipelines
+falsealarm scan -u example.com -A -o results.json -f json
 
-# Export results to JSON
-falsealarm -u example.com -A -o results.json -f json
-
-# Resume a previous scan
-falsealarm scan --resume fa_20260721_204512
-
-# List saved scans
+# List historical scans
 falsealarm list-scans
-
-# Silent mode (save to file without printing to terminal)
-falsealarm -u example.com -m dns -o report.txt --silent
-
-# Verbose mode (debug info)
-falsealarm -u example.com -m dns -v
 ```
 
-## ⚙️ CLI Options
+---
 
-```
-Usage: falsealarm [scan] [OPTIONS] -u <TARGET>
+## 🤖 AI Triage Integration
 
-Scan Options:
-  -u, --url          Target URL or domain [required]
-  -m, --module       Specific module(s), comma-separated
-  -A, --all          Run all available modules
-  -q, --quick        Quick scan (fast modules only)
+FalseAlarm introduces an AI Triage layer. By hooking into Gemini / OpenAI / Anthropic LLMs, the framework automatically analyzes scan outputs, filters out noise, and highlights chained exploit paths.
 
-Performance:
-  -t, --threads      Concurrent tasks [default: 50]
-  -r, --rate         Max requests/second [default: 30]
-  --timeout          Request timeout in seconds [default: 10]
-  --delay            Delay between requests in ms [default: 0]
-
-Proxy & Stealth:
-  --proxy            Proxy URL (http:// or socks5://)
-  --proxy-file       File containing proxy list
-  --random-agent     Rotate User-Agent randomly
-
-Output:
-  -o, --output       Save output to file
-  -f, --format       Output format: table/json/csv/txt [default: txt]
-  --silent           Only show results, no banner/progress
-  -v, --verbose      Show debug information
-
-State:
-  --resume           Resume scan by ID
-  --list-scans       List saved scans
-
-Info:
-  -h, --help         Show help
-  --version          Show version
+**Setup `.env` configuration:**
+```bash
+echo -e 'OPENAI_API_KEY="sk-1234"\nANTHROPIC_API_KEY=""\nOLLAMA=""\nPROMPT_TOOLKIT_NO_CPR=1\nCAI_STREAM=false' > .env
 ```
 
-## 🐍 Using as a Python Library
+**Execute scan with AI Triage:**
+```bash
+falsealarm scan -u example.com -A --ai-triage
+```
 
-FalseAlarm exposes its core components allowing you to build custom scripts or integrate it into other tools:
+---
+
+## 🐍 Python API Integration
+
+FalseAlarm is fully extensible. You can import its async core directly into your own security orchestration scripts.
 
 ```python
 import asyncio
-from falsealarm import AsyncEngine, ScanConfig, SubdomainModule, TechDetectModule
+from falsealarm.core.config import ScanConfig
+from falsealarm.core.engine import AsyncEngine
+from falsealarm.modules.techdetect import TechDetectModule
 
-async def main():
-    # Configure the scan
+async def automate_recon():
+    # 1. Define scanning parameters
     config = ScanConfig(
         target="example.com",
-        modules=["subdomain", "tech"],
-        threads=20
+        modules=["techdetect"],
+        threads=20,
+        timeout=10
     )
     
-    # Initialize engine
+    # 2. Initialize the asynchronous networking core
     engine = AsyncEngine(config)
     
-    # Run a specific module manually
-    tech_module = TechDetectModule(config, engine)
-    results = await tech_module.run()
+    # 3. Instantiate and execute the specific module
+    module = TechDetectModule(config, engine)
+    results = await module.run()
     
-    print(results)
+    print(f"[+] Discovered Technologies: {results}")
     await engine.close()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(automate_recon())
 ```
 
-## 🏗️ Architecture
+---
 
-```
-falsealarm/
-├── falsealarm/
-│   ├── __init__.py           # Package info + banner
-│   ├── __main__.py           # python -m falsealarm
-│   ├── cli.py                # Typer CLI entry point
-│   ├── core/
-│   │   ├── engine.py         # Async HTTP engine (aiohttp)
-│   │   ├── rate_limiter.py   # Token Bucket rate limiter
-│   │   ├── scheduler.py      # Module orchestrator
-│   │   ├── db.py             # SQLite state manager
-│   │   ├── fingerprint.py    # Request header randomizer
-│   │   ├── proxy.py          # Proxy rotation manager
-│   │   ├── config.py         # ScanConfig dataclass
-│   │   ├── logger.py         # Rich terminal logger
-│   │   ├── output.py         # Export (JSON/CSV/HTML)
-│   │   └── utils.py          # Shared utilities
-│   ├── modules/
-│   │   ├── base.py           # BaseModule abstract class
-│   │   ├── dns_enum.py       # DNS Enumeration module
-│   │   └── vulnscan.py       # YAML VulnScan module
-│   └── data/
-│       ├── user_agents.txt   # Browser UA strings
-│       ├── tech_signatures.json
-│       ├── templates/        # VulnScan YAML signatures
-│       │   └── env-exposure.yaml
-│       └── wordlists/
-│           ├── common_dirs.txt
-│           └── subdomains_top1k.txt
-├── pyproject.toml
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
+## 📜 License
 
-## ⚠️ Legal Disclaimer
+Copyright (c) 2026 **ReiKage (`reikageisme`)** & FalseAlarm Security Engine Contributors.
 
-**FalseAlarm is designed for authorized security testing only.**
+This project is licensed under the **MIT License**. Permission is hereby granted to use, copy, modify, merge, publish, distribute, and sublicense this software for any lawful security research or penetration testing purpose.
 
-Only use this tool on systems you have explicit permission to test. Unauthorized scanning or testing of systems you do not own or have permission to test is illegal and unethical.
+---
 
-The developers of FalseAlarm assume no liability for misuse of this tool.
+## ⚖️ Legal Disclaimer & Ethics
 
-## 📄 License
+FalseAlarm is an offensive security tool designed strictly for authorized penetration testing, academic research, and lawful bug bounty programs.
 
-MIT License — see [LICENSE](LICENSE) for details.
+Executing Layer 7 reconnaissance and fuzzing attacks against infrastructure without explicit, written authorization is illegal. The developers assume zero liability for any misuse, damage, or legal consequences resulting from the deployment of this tool.
+
+*Hack ethically. Stay authorized.*
