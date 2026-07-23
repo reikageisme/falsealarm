@@ -25,8 +25,8 @@ def print_banner(console=None, show_help=False) -> None:
         console = Console()
         
     # Force a wider console if we are showing side-by-side help to prevent squishing
-    if show_help and console.width < 130:
-        console = Console(width=130)
+    if show_help and console.width < 160:
+        console = Console(width=160)
         
     banner_ascii = textwrap.dedent(r"""
         
@@ -40,7 +40,8 @@ def print_banner(console=None, show_help=False) -> None:
     # Add a newline at the beginning explicitly to prevent terminal line-height clipping
     banner_ascii = "\n" + banner_ascii
 
-    styled_banner = Text(banner_ascii, style="bold bright_red")
+    # Set overflow="ignore" to prevent the '...' truncation on the ASCII art
+    styled_banner = Text(banner_ascii, style="bold bright_red", overflow="ignore", no_wrap=True)
     
     metadata = f"""
 [bold cyan]v{__version__}[/bold cyan] | Codename: [bold yellow]{__codename__}[/bold yellow]
@@ -83,8 +84,10 @@ def print_banner(console=None, show_help=False) -> None:
         
         # Use a borderless table to force side-by-side layout
         grid = Table.grid(expand=True, padding=(0, 4))
+        # Ensure left column never wraps or truncates
         grid.add_column(justify="center", no_wrap=True)
-        grid.add_column(justify="left", no_wrap=True)
+        # Right column can wrap if absolutely necessary
+        grid.add_column(justify="left")
         grid.add_row(left_content, right_content)
         
         final_content = grid
