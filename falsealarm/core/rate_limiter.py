@@ -74,6 +74,9 @@ class TokenBucketRateLimiter:
         Args:
             host: Optional hostname for per-host rate limiting.
         """
+        if self.rate <= 0:
+            return
+
         # Acquire from global bucket
         while True:
             async with self._lock:

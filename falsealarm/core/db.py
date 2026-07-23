@@ -29,7 +29,7 @@ class Database:
 
     async def init(self) -> None:
         """Initialize the database connection and create tables."""
-        self._conn = await aiosqlite.connect(self.db_path)
+        self._conn = await aiosqlite.connect(self.db_path, timeout=30.0)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA foreign_keys=ON")

@@ -165,8 +165,19 @@ async def _run_scan(
             typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
             sys.exit(1)
             
-    # Normalize target lists
-    targets = config.targets if config.targets else [config.target]
+    # Normalize target lists & expand CIDR notation if present
+    import ipaddress
+    raw_targets = config.targets if config.targets else ([config.target] if config.target else [])
+    targets = []
+    for t in raw_targets:
+        if "/" in t and not t.startswith("http"):
+            try:
+                net = ipaddress.ip_network(t, strict=False)
+                targets.extend([str(ip) for ip in net.hosts()])
+            except ValueError:
+                targets.append(t)
+        else:
+            targets.append(t)
     
     # We will currently run scans sequentially over targets
     db = Database()

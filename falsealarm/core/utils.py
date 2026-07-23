@@ -57,13 +57,15 @@ def parse_ports(port_str: str) -> list[int]:
                 pass
     return sorted(list(ports))
 
+import secrets
+
 def get_timestamp() -> str:
     """Get current timestamp in ISO format."""
     return datetime.utcnow().isoformat() + "Z"
 
 def generate_scan_id() -> str:
     """Generate a unique scan ID."""
-    return datetime.utcnow().strftime("fa_%Y%m%d_%H%M%S")
+    return f"fa_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(3)}"
 
 def get_data_path(filename: str) -> Path:
     """Get the path to a data file."""

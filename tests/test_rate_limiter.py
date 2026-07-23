@@ -5,7 +5,8 @@ from falsealarm.core.rate_limiter import TokenBucketRateLimiter
 
 @pytest.mark.asyncio
 async def test_rate_limiter_respects_rate():
-    limiter = TokenBucketRateLimiter(rate=50, burst=50, per_host_rate=50) # 50 req/sec
+    # rate=50, burst=10 -> initial 10 tokens free, remaining 40 tokens require 40/50 = 0.8s
+    limiter = TokenBucketRateLimiter(rate=50, burst=10, per_host_rate=50)
     start_time = time.time()
     
     # Simulate 50 requests
@@ -13,9 +14,7 @@ async def test_rate_limiter_respects_rate():
         await limiter.acquire()
         
     duration = time.time() - start_time
-    
-    # 50 requests at 50 req/sec should take at least 1 second (minus small overhead)
-    assert duration >= 0.9
+    assert duration >= 0.7
 
 @pytest.mark.asyncio
 async def test_rate_limiter_zero_rate():
