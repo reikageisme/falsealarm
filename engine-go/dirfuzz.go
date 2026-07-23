@@ -2,12 +2,17 @@ package main
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/valyala/fasthttp"
@@ -19,6 +24,12 @@ type Result struct {
 	ContentLength int    `json:"length"`
 }
 
+func randomString(n int) string {
+	bytes := make([]byte, n/2+1)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)[:n]
+}
+
 func main() {
 	targetURL := flag.String("u", "", "Target URL with FUZZ placeholder")
 	wordlistPath := flag.String("w", "", "Path to wordlist")
@@ -27,19 +38,22 @@ func main() {
 	flag.Parse()
 
 	if *targetURL == "" || *wordlistPath == "" {
-		fmt.Println(`{"error": "Missing target or wordlist"}`)
+		errObj, _ := json.Marshal(map[string]string{"error": "Missing target or wordlist"})
+		fmt.Println(string(errObj))
 		os.Exit(1)
 	}
 
 	if !strings.Contains(*targetURL, "FUZZ") {
-		fmt.Println(`{"error": "Target URL must contain FUZZ placeholder"}`)
+		errObj, _ := json.Marshal(map[string]string{"error": "Target URL must contain FUZZ placeholder"})
+		fmt.Println(string(errObj))
 		os.Exit(1)
 	}
 
-	// Read wordlist
+	// Open wordlist
 	file, err := os.Open(*wordlistPath)
 	if err != nil {
-		fmt.Printf(`{"error": "Failed to open wordlist: %v"}`+"\n", err)
+		errObj, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("Failed to open wordlist: %v", err)})
+		fmt.Println(string(errObj))
 		os.Exit(1)
 	}
 	defer file.Close()
@@ -61,21 +75,50 @@ func main() {
 		WriteTimeout:             time.Duration(*timeout) * time.Second,
 	}
 
-	// Setup workers
-	jobs := make(chan string, len(words))
-	results := make(chan Result, len(words))
-	var wg sync.WaitGroup
+	// 1. Baseline Calibration for Catch-All 200/302 Detection
+	randPayload := "falsealarm_rand_" + randomString(10)
+	baselineURL := strings.ReplaceAll(*targetURL, "FUZZ", randPayload)
 
+	reqBase := fasthttp.AcquireRequest()
+	resBase := fasthttp.AcquireResponse()
+	reqBase.SetRequestURI(baselineURL)
+	reqBase.Header.SetMethod("GET")
+	reqBase.Header.Set("User-Agent", "FalseAlarm-Go-Engine/1.0")
+
+	baselineStatus := 0
+	baselineLen := 0
+	hasBaseline := false
+
+	if err := client.Do(reqBase, resBase); err == nil {
+		baselineStatus = resBase.StatusCode()
+		baselineLen = len(resBase.Body())
+		if baselineStatus == 200 || baselineStatus == 301 || baselineStatus == 302 {
+			hasBaseline = true
+		}
+	}
+	fasthttp.ReleaseRequest(reqBase)
+	fasthttp.ReleaseResponse(resBase)
+
+	// Setup workers and channels
+	jobs := make(chan string, *threads*2)
+	var wg sync.WaitGroup
+	var activeBackoff int32 // atomic flag for 429 rate limit backoff
+
+	// Start worker goroutines
 	for i := 0; i < *threads; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for payload := range jobs {
-				testURL := strings.ReplaceAll(*targetURL, "FUZZ", payload)
-				
+				// Handle 429 backoff sleep if triggered by another worker
+				if atomic.LoadInt32(&activeBackoff) > 0 {
+					time.Sleep(1 * time.Second)
+				}
+
+				testURL := strings.ReplaceAll(*targetURL, "FUZZ", url.PathEscape(payload))
+
 				req := fasthttp.AcquireRequest()
 				res := fasthttp.AcquireResponse()
-				
 				req.SetRequestURI(testURL)
 				req.Header.SetMethod("GET")
 				req.Header.Set("User-Agent", "FalseAlarm-Go-Engine/1.0")
@@ -83,41 +126,48 @@ func main() {
 				err := client.Do(req, res)
 				if err == nil {
 					status := res.StatusCode()
-					// Simple filter: 200, 301, 302, 401, 403, 500
-					if status != 404 && status != 400 {
-						results <- Result{
-							URL:           testURL,
-							Status:        status,
-							ContentLength: len(res.Body()),
+					bodyLen := len(res.Body())
+
+					// Handle 429 Rate Limiting
+					if status == 429 {
+						atomic.StoreInt32(&activeBackoff, 1)
+						time.Sleep(2 * time.Second)
+						atomic.StoreInt32(&activeBackoff, 0)
+					} else if status != 404 && status != 400 && status != 0 {
+						// Baseline catch-all comparison
+						isFP := false
+						if hasBaseline && status == baselineStatus {
+							diff := math.Abs(float64(bodyLen - baselineLen))
+							if diff < 50 { // If length matches baseline within 50 bytes tolerance
+								isFP = true
+							}
+						}
+
+						if !isFP {
+							r := Result{
+								URL:           testURL,
+								Status:        status,
+								ContentLength: bodyLen,
+							}
+							// NDJSON Streaming Output to stdout immediately
+							out, _ := json.Marshal(r)
+							fmt.Println(string(out))
 						}
 					}
 				}
-				
+
 				fasthttp.ReleaseRequest(req)
 				fasthttp.ReleaseResponse(res)
 			}
 		}()
 	}
 
-	// Send jobs
+	// Feed jobs
 	for _, w := range words {
 		jobs <- w
 	}
 	close(jobs)
 
-	// Wait for completion in a goroutine to close results
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results
-	var finalResults []Result
-	for r := range results {
-		finalResults = append(finalResults, r)
-	}
-
-	// Output as JSON for Python to consume
-	out, _ := json.Marshal(finalResults)
-	fmt.Println(string(out))
+	// Wait for all workers to finish
+	wg.Wait()
 }

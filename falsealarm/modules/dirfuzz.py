@@ -69,42 +69,49 @@ class DirFuzzModule(BaseModule):
                     stderr=asyncio.subprocess.PIPE
                 )
                 
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode == 0:
+                # Stream NDJSON line-by-line from Go subprocess stdout
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8').strip()
+                    if not line_str:
+                        continue
                     try:
-                        go_results = json.loads(stdout.decode())
-                        # Skip error objects if any
-                        if isinstance(go_results, dict) and "error" in go_results:
-                            self.logger.error(f"Go engine error: {go_results['error']}")
-                        else:
-                            for r in go_results:
-                                url = r.get("url")
-                                status = r.get("status")
-                                length = r.get("length")
-                                
-                                item = {
-                                    "type": "fuzz" if has_fuzz else "directory",
-                                    "payload": url.split("/")[-1],
-                                    "url": url,
-                                    "status": status,
-                                    "length": length
-                                }
-                                results.append(item)
-                                
-                                if status == 403:
-                                    stats["forbidden"] += 1
-                                    self.logger.warning(f"Forbidden: {url} [403]")
-                                else:
-                                    stats["found"] += 1
-                                    self.logger.success(f"Found: {url} [Status: {status}, Size: {length}]")
-                                    
-                            stats["paths_tested"] = len(paths_to_test)
-                            return self._make_result(target, results, stats)
+                        r = json.loads(line_str)
+                        if "error" in r:
+                            self.logger.error(f"Go engine error: {r['error']}")
+                            continue
+                        
+                        url = r.get("url")
+                        status = r.get("status")
+                        length = r.get("length")
+                        
+                        if url:
+                            item = {
+                                "type": "fuzz" if has_fuzz else "directory",
+                                "payload": url.split("/")[-1],
+                                "url": url,
+                                "status": status,
+                                "length": length
+                            }
+                            results.append(item)
                             
-                    except json.JSONDecodeError as e:
-                        self.logger.error(f"Go engine returned invalid JSON: {e}")
+                            if status == 403:
+                                stats["forbidden"] += 1
+                                self.logger.warning(f"Forbidden: {url} [403]")
+                            else:
+                                stats["found"] += 1
+                                self.logger.success(f"Found: {url} [Status: {status}, Size: {length}]")
+                    except json.JSONDecodeError:
+                        pass
+
+                await process.wait()
+                if process.returncode == 0:
+                    stats["paths_tested"] = len(paths_to_test)
+                    return self._make_result(target, results, stats)
                 else:
+                    stderr = await process.stderr.read()
                     self.logger.error(f"Go engine failed: {stderr.decode()}")
             except OSError as e:
                 self.logger.warning(f"Could not execute Go binary (OS Policy/AV blocking?): {e}")
