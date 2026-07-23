@@ -6,8 +6,8 @@
   </picture>
 
   <br/>
-  <h1>🛡️ FalseAlarm: Advanced Async Web Reconnaissance Framework</h1>
-  <p><strong>An out-of-the-box, Polyglot (Python + Go) & AI-Ready Attack Surface Mapping Engine for Modern Hackers.</strong></p>
+  <h1>FalseAlarm: Advanced Async Web Reconnaissance Framework</h1>
+  <p><strong>An out-of-the-box, Polyglot (Python + Go) & AI-Ready Attack Surface Mapping Engine.</strong></p>
 
   <p>
     <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/badge/pypi-v1.0.0--dev-2563eb?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI version" /></a>
@@ -20,40 +20,40 @@
   </p>
 
   <p>
-    <em>Developed with rigorous standards by <a href="https://github.com/reikageisme">ReiKage (reikageisme)</a> & The Open Source InfoSec Community.</em>
+    <em>Developed by <a href="https://github.com/reikageisme">ReiKage (reikageisme)</a> & The Open Source InfoSec Community.</em>
   </p>
 
-  <a href="#-philosophy--the-problem-it-solves">Philosophy</a> •
-  <a href="#-quickstart">Quickstart</a> •
-  <a href="#-core-features">Features</a> •
-  <a href="#-module-ecosystem">Modules</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-environment-variables">Environment</a> •
-  <a href="#-usage-guide">Usage Guide</a> •
-  <a href="#-ai-triage-integration">AI Triage</a> •
-  <a href="#-contributing">Contributing</a> •
-  <a href="#-license">License</a>
+  <a href="#philosophy--the-problem-it-solves">Philosophy</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#core-features">Features</a> •
+  <a href="#module-ecosystem">Modules</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#environment-variables">Environment</a> •
+  <a href="#usage-guide">Usage Guide</a> •
+  <a href="#ai-triage-integration">AI Triage</a> •
+  <a href="#contributing">Contributing</a> •
+  <a href="#license">License</a>
 </div>
 
 ---
 
-## 🎯 Philosophy & The Problem It Solves
+## Philosophy & The Problem It Solves
 
 Traditional scanning tools are inherently flawed for modern web architectures. They operate synchronously, consume excessive memory, and lack the heuristic intelligence required to bypass Next-Gen Web Application Firewalls (WAFs). 
 
-**FalseAlarm** was engineered from the ground up to solve this. By combining a Python `asyncio` orchestrator with a high-performance **Go (fasthttp)** worker engine, dynamic YAML vulnerability templates, and intelligent plugin auto-discovery, FalseAlarm allows Pentesters and Bug Bounty Hunters to map vast attack surfaces at blistering speeds with streaming real-time NDJSON feedback.
+FalseAlarm was engineered from the ground up to solve this. By combining a Python `asyncio` orchestrator with a high-performance Go (`fasthttp`) worker engine, dynamic YAML vulnerability templates, and intelligent plugin auto-discovery, FalseAlarm allows operators to map vast attack surfaces at blistering speeds with streaming real-time NDJSON feedback.
 
-Accordingly, **Human-In-The-Loop (HITL)** control is a core design principle of FalseAlarm. Operators retain granular control during execution with non-destructive graceful handling across all async subprocesses via `Ctrl+C` interrupt handlers.
+Accordingly, Human-In-The-Loop (HITL) control is a core design principle of FalseAlarm. Operators retain granular control during execution with non-destructive graceful handling across all async subprocesses via `Ctrl+C` interrupt handlers.
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
-To launch **FalseAlarm** after installation, simply type `falsealarm` or run a targeted scan from your CLI:
+To launch FalseAlarm after installation, simply type `falsealarm` or run a targeted scan from your CLI:
 
 ```text
 ┌──(.venv)(tanh㉿kali)-[~/falsealarm]
-└─$ falsealarm scan -u http://google.com/FUZZ -m dirfuzz
+└─$ falsealarm scan -u http://example.com/FUZZ -m dirfuzz
 
 ╭───────────────────  Layer 7 Reconnaissance Engine  ───────────────────╮
 │ ___________        .__             _____  .__                         │
@@ -69,21 +69,17 @@ To launch **FalseAlarm** after installation, simply type `falsealarm` or run a t
 ╰─────────────────────────  Deep InfoSec Lab  ──────────────────────────╯
 ⚠ Legal: Only use on systems you have permission to test.
 
-[20:44:18] [*] Starting scan: http://google.com/FUZZ
-[20:44:18] [*] 🚀 Engaging Go-based High Speed Fuzzing Engine...
-[20:44:19] [+] Found: http://google.com/js [Status: 301, Size: 222]
-[20:44:20] [+] Found: http://google.com/robots.txt [Status: 301, Size: 230]
+[20:44:18] [*] Starting scan: http://example.com/FUZZ
+[20:44:18] [*] Engaging Go-based High Speed Fuzzing Engine...
+[20:44:19] [+] Found: http://example.com/js [Status: 301, Size: 222]
+[20:44:20] [+] Found: http://example.com/robots.txt [Status: 301, Size: 230]
 ```
-
-The cybernetic ASCII banner rendered in bold bright red using Rich styling welcomes operators into a high-throughput reconnaissance environment.
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
-For leveraging private AI triage models and custom API endpoints, FalseAlarm automatically reads your configuration from `.env`.
-
-Simply create or update your `.env` file in the project root:
+For leveraging private AI triage models and custom API endpoints, FalseAlarm automatically reads your configuration from `.env`. Create or update your `.env` file in the project root:
 
 ```bash
 # Create local .env file
@@ -96,20 +92,20 @@ EOF
 
 ---
 
-## ⚡ Core Features
+## Core Features
 
-### 🚀 Polyglot & High-Performance Engine
+### Polyglot & High-Performance Engine
 * **Python Orchestrator + Native Go Engine:** High-speed directory and parameter fuzzing powered by `fasthttp` in Go, with real-time NDJSON line-by-line streaming.
 * **Full Asynchronous I/O:** Built on `aiohttp` and `asyncio`, capable of sustaining thousands of concurrent connections with minimal CPU footprint.
 * **Token Bucket Rate Limiting:** Millisecond-precision traffic control with automatic HTTP 429 backoff handling.
 * **Auto-Discovery Plugin Architecture:** Drop any custom `.py` module inheriting `BaseModule` into `falsealarm/modules/` for instant execution without touching core code.
 
-### 🕵️‍♂️ Stealth & Evasion
+### Stealth & Evasion
 * **Proxy Orchestration:** Native support for chained HTTP and SOCKS5 proxies (e.g., Tor network) with automatic node health checks.
 * **Dynamic Fingerprinting:** Automated rotation of `User-Agent`, TLS handshakes, and HTTP headers to spoof legitimate traffic profiles.
 * **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
 
-### 🧠 Intelligence & State Management
+### Intelligence & State Management
 * **Multi-Target & CIDR Support:** Scan individual URLs (`-u`), input lists (`-iL targets.txt`), or full IP network blocks (`192.168.1.0/24`).
 * **YAML Configuration Profiles:** Save and reuse scan presets (`falsealarm scan -c profile.yaml -p stealth`).
 * **AI-Ready Triage:** Direct integration with LLMs (Gemini / Anthropic / OpenAI) to automatically parse scan results and prioritize high-impact vulnerabilities.
@@ -117,26 +113,26 @@ EOF
 
 ---
 
-## 🧩 Module Ecosystem
+## Module Ecosystem
 
 FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Each component can run in isolation or orchestrated together via the `-A` (All) flag.
 
 | Module Core | Tactical Capability | OPSEC Level | Status |
 |-------------|---------------------|-------------|:------:|
-| `dns` | Deep Record Enumeration (A, AAAA, MX, NS, TXT, SOA, AXFR, SPF, DMARC) | Passive/Active | ✅ |
-| `subdomain` | Multi-source Subdomain Enumeration (crt.sh, TLS certs, DNS brute) | Active | ✅ |
-| `httpprobe` | Liveness Probing + Similarity Hashing for false positive reduction | Active | ✅ |
-| `techdetect` | Fingerprinting (CMS, Frameworks, WAF, CDN) via Headers & DOM | Active | ✅ |
-| `dirfuzz` | Polyglot (Go + Python) High-Speed Path/Directory Fuzzing (NDJSON Streaming) | Aggressive | ✅ |
-| `js_analysis` | JavaScript AST Parsing for hidden API endpoints & hardcoded secrets | Active | ✅ |
-| `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | ✅ |
-| `portscan` | Async TCP/UDP Port Scanner (Nmap alternative for L7 chains) | Aggressive | ✅ |
-| `websocket` | WebSocket (WS/WSS) Discovery & Message Fuzzing | Active | ✅ |
-| `vulnscan` | Next-Gen YAML-based Vulnerability Detection Engine (CVEs, Cloud Keys, Misconfigs) | Aggressive | ✅ |
+| `dns` | Deep Record Enumeration (A, AAAA, MX, NS, TXT, SOA, AXFR, SPF, DMARC) | Passive/Active | Production |
+| `subdomain` | Multi-source Subdomain Enumeration (crt.sh, TLS certs, DNS brute) | Active | Production |
+| `httpprobe` | Liveness Probing + Similarity Hashing for false positive reduction | Active | Production |
+| `techdetect` | Fingerprinting (CMS, Frameworks, WAF, CDN) via Headers & DOM | Active | Production |
+| `dirfuzz` | Polyglot (Go + Python) High-Speed Path/Directory Fuzzing (NDJSON Streaming) | Aggressive | Production |
+| `js_analysis` | JavaScript AST Parsing for hidden API endpoints & hardcoded secrets | Active | Production |
+| `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | Production |
+| `portscan` | Async TCP/UDP Port Scanner (Nmap alternative for L7 chains) | Aggressive | Production |
+| `websocket` | WebSocket (WS/WSS) Discovery & Message Fuzzing | Active | Production |
+| `vulnscan` | Next-Gen YAML-based Vulnerability Detection Engine (CVEs, Cloud Keys, Misconfigs) | Aggressive | Production |
 
 ---
 
-## 📦 Installation
+## Installation
 
 FalseAlarm is designed to be deployed rapidly across diverse penetration testing environments.
 
@@ -158,18 +154,22 @@ pipx install git+https://github.com/reikageisme/falsealarm.git
 ```
 
 ### Option 3: Docker Deployment
+Build and run FalseAlarm in an isolated container. The Dockerfile compiles the Go engine during the build process automatically.
+
 ```bash
-docker pull reikageisme/falsealarm:latest
+git clone https://github.com/reikageisme/falsealarm.git
+cd falsealarm
+docker build -t reikageisme/falsealarm .
 docker run -it --rm reikageisme/falsealarm scan -u example.com -A
 ```
 
 ---
 
-## 💻 Usage Guide
+## Usage Guide
 
 The FalseAlarm CLI is built for speed and intuition.
 
-### 🔍 Standard Reconnaissance
+### Standard Reconnaissance
 ```bash
 # 1. Comprehensive mapping (All modules)
 falsealarm scan -u example.com -A
@@ -185,7 +185,7 @@ falsealarm scan -u 192.168.1.0/24 -m portscan,httpprobe
 falsealarm scan -u example.com -q
 ```
 
-### 🥷 Stealth & High-Speed Fuzzing
+### Stealth & High-Speed Fuzzing
 ```bash
 # Rate limited with Tor network proxy and randomized headers
 falsealarm scan -u example.com -A -r 15 -t 20 --proxy socks5://127.0.0.1:9050 --random-agent
@@ -194,7 +194,7 @@ falsealarm scan -u example.com -A -r 15 -t 20 --proxy socks5://127.0.0.1:9050 --
 falsealarm scan -u http://example.com/FUZZ -m dirfuzz -t 100 -w common.txt
 ```
 
-### 📊 Data Management & Profiles
+### Data Management & Profiles
 ```bash
 # Load scan parameters from a YAML profile
 falsealarm scan -c profile.yaml -p stealth
@@ -208,7 +208,7 @@ falsealarm list-scans
 
 ---
 
-## 🤖 AI Triage Integration
+## AI Triage Integration
 
 FalseAlarm introduces an AI Triage layer. By hooking into Gemini / OpenAI / Anthropic LLMs, the framework automatically analyzes scan outputs, filters out noise, and highlights chained exploit paths.
 
@@ -219,7 +219,7 @@ falsealarm scan -u example.com -A --ai-triage
 
 ---
 
-## 🐍 Python API Integration
+## Python API Integration
 
 FalseAlarm is fully extensible. You can import its async core directly into your own security orchestration scripts.
 
@@ -254,16 +254,16 @@ if __name__ == "__main__":
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions from the InfoSec community. Whether it's adding new YAML vulnerability templates, optimizing the async core, or fixing bugs, please review our [CONTRIBUTING.md](CONTRIBUTING.md) guidelines before submitting a Pull Request.
 
-### 📜 Code of Conduct
+### Code of Conduct
 Please note that this project is released with a Contributor Code of Conduct. By participating in this project you agree to abide by its terms. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ---
 
-## 📜 License
+## License
 
 Copyright (c) 2026 **ReiKage (`reikageisme`)** & FalseAlarm Security Engine Contributors.
 
@@ -271,7 +271,7 @@ This project is a combination of open-source components under the **MIT License*
 
 ---
 
-## ⚖️ Legal Disclaimer & Ethics
+## Legal Disclaimer & Ethics
 
 FalseAlarm is an offensive security tool designed strictly for authorized penetration testing, academic research, and lawful bug bounty programs.
 
