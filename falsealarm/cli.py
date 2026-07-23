@@ -267,8 +267,14 @@ def build_engine():
 
 def main():
     # Auto-inject 'scan' command for backward compatibility if the user just types `falsealarm -u ...`
-    if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "build-engine", "--help", "--version"]:
+    if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "build-engine", "--help", "-h", "--version"]:
         sys.argv.insert(1, "scan")
+        
+    # Print the extended cheat-sheet banner if help is requested or no args provided
+    if len(sys.argv) == 1 or "--help" in sys.argv or "-h" in sys.argv:
+        from falsealarm import print_banner
+        print_banner(show_help=True)
+        
     app()
 
 if __name__ == "__main__":

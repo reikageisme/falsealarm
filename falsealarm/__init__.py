@@ -8,7 +8,7 @@ __author__ = "reikageisme"
 __license__ = "MIT"
 __codename__ = "Phantom Strike"
 
-def print_banner(console=None) -> None:
+def print_banner(console=None, show_help=False) -> None:
     """
     Kết xuất (Render) ASCII Banner và thông tin hệ thống.
     Được gọi ngay khi khởi chạy công cụ qua CLI.
@@ -19,12 +19,15 @@ def print_banner(console=None) -> None:
     from rich.panel import Panel
     from rich.text import Text
     from rich.align import Align
+    from rich.table import Table
     
     if console is None:
         console = Console()
         
-    # 1. Dùng textwrap.dedent để dọn dẹp các khoảng trắng thụt lề dư thừa của Python
-    # strip('\n') để bỏ các dòng trống thừa ở đầu và cuối chuỗi
+    # Force a wider console if we are showing side-by-side help to prevent squishing
+    if show_help and console.width < 130:
+        console = Console(width=130)
+        
     banner_ascii = textwrap.dedent(r"""
         ___________        .__             _____  .__                        
         \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____  
@@ -34,10 +37,8 @@ def print_banner(console=None) -> None:
              \/        \/            \/                     \/            \/ 
     """).strip('\n')
     
-    # 2. KHÔNG DÙNG justify="center" ở đây để giữ nguyên cấu trúc khối block
     styled_banner = Text(banner_ascii, style="bold bright_red")
     
-    # Bổ sung siêu dữ liệu (Metadata) hiển thị chuyên nghiệp
     metadata = f"""
 [bold cyan]v{__version__}[/bold cyan] | Codename: [bold yellow]{__codename__}[/bold yellow]
 [dim]Asynchronous I/O Engine Active | Python {platform.python_version()}[/dim]
@@ -46,25 +47,51 @@ def print_banner(console=None) -> None:
     
     styled_metadata = Text.from_markup(metadata, justify="center")
     
-    # Gom khối banner và metadata lại với nhau
     full_content = Text()
     full_content.append(styled_banner)
     full_content.append("\n\n")
     full_content.append(styled_metadata)
     
-    # 3. Sử dụng Align.center để căn giữa TOÀN BỘ khối này vào giữa màn hình terminal
-    centered_content = Align.center(full_content)
+    left_content = Align.center(full_content)
+
+    if show_help:
+        cheat_sheet = textwrap.dedent("""
+            [bold yellow]# 1. Comprehensive mapping (All modules)[/bold yellow]
+            falsealarm scan -u example.com -A
+            
+            [bold yellow]# 2. Targeted modular scan (DNS and Tech only)[/bold yellow]
+            falsealarm scan -u example.com -m dns,techdetect
+            
+            [bold yellow]# 3. Multi-target file or CIDR range scan[/bold yellow]
+            falsealarm scan -iL targets.txt -q
+            falsealarm scan -u 192.168.1.0/24 -m portscan,httpprobe
+            
+            [bold yellow]# 4. Quick mode (Bypasses heavy fuzzing)[/bold yellow]
+            falsealarm scan -u example.com -q
+        """).strip('\n')
+        
+        right_content = Align.left(Text.from_markup(cheat_sheet))
+        
+        # Use a borderless table to force side-by-side layout
+        grid = Table.grid(expand=True, padding=(0, 4))
+        grid.add_column(justify="center", no_wrap=True)
+        grid.add_column(justify="left", no_wrap=True)
+        grid.add_row(left_content, right_content)
+        
+        final_content = grid
+        expand_panel = True
+    else:
+        final_content = left_content
+        expand_panel = False
     
-    # Đóng gói toàn bộ vào một Panel để tạo khung viền cứng cáp
     panel = Panel(
-        centered_content,
+        final_content,
         border_style="red",
         title="[bold white] Layer 7 Reconnaissance Engine [/bold white]",
         subtitle="[bold white] Deep InfoSec Lab [/bold white]",
-        expand=False
+        expand=expand_panel
     )
     
-    # In ra terminal
     console.print(panel)
 
 from falsealarm.core import (
