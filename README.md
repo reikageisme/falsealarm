@@ -202,8 +202,17 @@ falsealarm scan -c profile.yaml -p stealth
 # Export results to JSON for CI/CD pipelines
 falsealarm scan -u example.com -A -o results.json -f json
 
+# Export SARIF for GitHub Code Scanning and security CI pipelines
+falsealarm scan -u example.com -A -o falsealarm.sarif -f sarif
+
 # List historical scans
 falsealarm list-scans
+
+# Inspect every installed module before choosing a scan profile
+falsealarm modules
+
+# Continue a scan that was interrupted or paused
+falsealarm scan --resume <scan-id>
 ```
 
 ---

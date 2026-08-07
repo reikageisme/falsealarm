@@ -227,6 +227,41 @@ class Database:
             return result
         return None
 
+    async def get_last_completed_scan(
+        self, target: str, exclude_scan_id: str | None = None
+    ) -> dict | None:
+        """Get the most recent completed scan for a target (for diffing).
+
+        Args:
+            target: The scan target to match.
+            exclude_scan_id: Scan ID to exclude (typically the current scan).
+
+        Returns:
+            The previous scan's full result dict (module -> {"data": [...]})
+            or None if no previous completed scan exists for this target.
+        """
+        cursor = await self._conn.execute(
+            "SELECT id FROM scans WHERE target = ? AND status = 'completed' "
+            "AND id != ? ORDER BY created_at DESC LIMIT 1",
+            (target, exclude_scan_id or ""),
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+
+        prev_scan_id = row["id"]
+        results = await self.get_results(prev_scan_id)
+
+        # Note: r["data"] here is the *parsed* data_json, which is the
+        # full ModuleResult.to_dict() (module/target/data/stats/...),
+        # already shaped the way diff_scan_results() expects — don't
+        # wrap it in another {"data": ...} layer.
+        combined: dict[str, dict] = {}
+        for r in results:
+            if "module" in r and "data" in r:
+                combined[r["module"]] = r["data"]
+        return combined
+
     async def list_scans(self) -> list[dict]:
         """List all saved scans, most recent first.
 

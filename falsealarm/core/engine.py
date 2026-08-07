@@ -137,85 +137,111 @@ class AsyncEngine:
             "redirect_url": None,
         }
 
-        try:
-            # Extract host for per-host rate limiting
-            host = urlparse(url).hostname or ""
-
-            # Wait for rate limiter
-            await self._rate_limiter.acquire(host=host)
-
-            # Apply delay if configured
-            if self.config.delay > 0:
-                await asyncio.sleep(self.config.delay / 1000.0)
-
-            # Build headers
-            headers = kwargs.pop("headers", {})
-            if self._fingerprint:
-                fp_headers = self._fingerprint.get_headers()
-                fp_headers.update(headers)
-                headers = fp_headers
-
-            # Get proxy for aiohttp
-            proxy = None
-            if self._proxy_manager and self._proxy_manager.has_proxies:
-                proxy = self._proxy_manager.get_proxy_for_aiohttp()
-
-            # Send request
-            start_time = time.monotonic()
-            async with self._session.request(
-                method,
-                url,
-                headers=headers,
-                proxy=proxy,
-                ssl=False,
-                allow_redirects=kwargs.pop("allow_redirects", True),
-                **kwargs,
-            ) as response:
-                elapsed = time.monotonic() - start_time
-
-                body = ""
-                try:
-                    body = await response.text(errors="replace")
-                except Exception:
+        max_retries = 2
+        backoff_times = [0.5, 1.5]
+        
+        for attempt in range(max_retries + 1):
+            try:
+                # Extract host for per-host rate limiting
+                host = urlparse(url).hostname or ""
+    
+                # Wait for rate limiter
+                await self._rate_limiter.acquire(host=host)
+    
+                # Apply delay if configured
+                if self.config.delay > 0:
+                    await asyncio.sleep(self.config.delay / 1000.0)
+    
+                # Build headers
+                # We need to copy kwargs['headers'] if we're retrying so we don't pop it permanently
+                req_kwargs = kwargs.copy()
+                headers = req_kwargs.pop("headers", {}).copy()
+                if self._fingerprint:
+                    fp_headers = self._fingerprint.get_headers()
+                    fp_headers.update(headers)
+                    headers = fp_headers
+    
+                # Get proxy for aiohttp
+                proxy = None
+                if self._proxy_manager and self._proxy_manager.has_proxies:
+                    proxy = self._proxy_manager.get_proxy_for_aiohttp()
+    
+                # Send request
+                start_time = time.monotonic()
+                async with self._session.request(
+                    method,
+                    url,
+                    headers=headers,
+                    proxy=proxy,
+                    ssl=False,
+                    allow_redirects=req_kwargs.pop("allow_redirects", True),
+                    **req_kwargs,
+                ) as response:
+                    elapsed = time.monotonic() - start_time
+    
+                    body = ""
                     try:
-                        raw = await response.read()
-                        body = raw.decode("utf-8", errors="replace")
+                        body = await response.text(errors="replace")
                     except Exception:
-                        body = ""
-
-                # Extract title from HTML
-                title = ""
-                if "<title>" in body.lower():
-                    start = body.lower().find("<title>") + 7
-                    end = body.lower().find("</title>", start)
-                    if end > start:
-                        title = body[start:end].strip()[:200]
-
-                # Get redirect URL
-                redirect_url = None
-                if response.history:
-                    redirect_url = str(response.url)
-
-                result.update(
-                    {
-                        "status": response.status,
-                        "headers": dict(response.headers),
-                        "body": body,
-                        "content_length": len(body),
-                        "title": title,
-                        "elapsed": round(elapsed, 3),
-                        "redirect_url": redirect_url,
-                    }
-                )
-
-        except asyncio.TimeoutError:
-            result["error"] = "timeout"
-        except aiohttp.ClientConnectorError as e:
-            result["error"] = f"connection_error: {e}"
-        except aiohttp.ClientError as e:
-            result["error"] = f"client_error: {e}"
-        except Exception as e:
-            result["error"] = f"unknown_error: {type(e).__name__}: {e}"
+                        try:
+                            raw = await response.read()
+                            body = raw.decode("utf-8", errors="replace")
+                        except Exception:
+                            body = ""
+    
+                    # Extract title from HTML
+                    title = ""
+                    if "<title>" in body.lower():
+                        start = body.lower().find("<title>") + 7
+                        end = body.lower().find("</title>", start)
+                        if end > start:
+                            title = body[start:end].strip()[:200]
+    
+                    # Get redirect URL
+                    redirect_url = None
+                    if response.history:
+                        redirect_url = str(response.url)
+    
+                    result.update(
+                        {
+                            "status": response.status,
+                            "headers": dict(response.headers),
+                            "body": body,
+                            "content_length": len(body),
+                            "title": title,
+                            "elapsed": round(elapsed, 3),
+                            "redirect_url": redirect_url,
+                        }
+                    )
+                    
+                    # Report success to rate limiter
+                    if self._rate_limiter:
+                        await self._rate_limiter.report_status(success=True, status_code=response.status)
+                    
+                    # If we got a valid response (even 4xx/5xx), don't retry network loop
+                    break
+    
+            except (asyncio.TimeoutError, aiohttp.ClientConnectorError, aiohttp.ClientError) as e:
+                # Report failure to rate limiter
+                if self._rate_limiter:
+                    await self._rate_limiter.report_status(success=False)
+                    
+                if attempt < max_retries:
+                    await asyncio.sleep(backoff_times[attempt])
+                    continue
+                else:
+                    if isinstance(e, asyncio.TimeoutError):
+                        result["error"] = "timeout"
+                    elif isinstance(e, aiohttp.ClientConnectorError):
+                        result["error"] = f"connection_error: {e}"
+                    else:
+                        result["error"] = f"client_error: {e}"
+                    break
+            except Exception as e:
+                if self._rate_limiter:
+                    await self._rate_limiter.report_status(success=False)
+                result["error"] = f"unknown_error: {type(e).__name__}: {e}"
+                break
 
         return result
 

@@ -81,6 +81,11 @@ class ScanScheduler:
             except Exception as e:
                 self.logger.error(f"Failed to load module {modname}: {e}")
 
+    @property
+    def scan_id(self) -> str | None:
+        """Public accessor for the current scan's ID."""
+        return self._scan_id
+
     def register_module(self, module_class) -> None:
         """Manually register a module class (mostly for testing).
         
@@ -120,22 +125,40 @@ class ScanScheduler:
             return list(self._modules.keys())
 
     async def run(self) -> dict:
-        """Run all selected modules and return combined results.
+        """Run all selected modules based on the DAG pipeline.
 
-        Executes modules sequentially, saving each result to the
+        Executes modules according to dependency graph, saving each result to the
         database. Returns a dict mapping module names to their results.
-
-        Returns:
-            Dict of {module_name: result_data}
         """
-        modules_to_run = self._resolve_modules()
-
-        if not modules_to_run:
-            self.logger.warning("No modules to run.")
+        from falsealarm.core.pipeline import PipelineManager
+        from falsealarm.core.waf_detect import detect_waf
+        
+        pipeline = PipelineManager(self.config)
+        requested_modules = pipeline.get_allowed_modules()
+        unknown_modules = [m for m in requested_modules if m not in self._modules]
+        if unknown_modules:
+            self.logger.warning(
+                f"Unknown module(s): {', '.join(unknown_modules)}. "
+                f"Available: {', '.join(sorted(self._modules))}"
+            )
+        allowed_modules = [m for m in requested_modules if m in self._modules]
+        
+        if not allowed_modules:
+            self.logger.warning("No modules to run for this profile.")
             return {}
 
         # Start engine
         await self.engine.start()
+        
+        # WAF Detection (Phase 1)
+        self.logger.info("Running pre-scan WAF detection...")
+        waf_detected, waf_name = await detect_waf(self.config.target, self.engine)
+        if waf_detected:
+            self.config.waf_detected = True
+            self.config.waf_name = waf_name
+            self.logger.warning(f"Target is protected by WAF/CDN: {waf_name}. Results may be unreliable.")
+            if self.config.adaptive_rate:
+                self.logger.info("Adaptive rate limiting will adjust automatically.")
 
         # Create scan record
         config_json = json.dumps(self.config.to_dict(), default=str)
@@ -144,10 +167,10 @@ class ScanScheduler:
         )
 
         self.logger.info(
-            f"Starting scan: [bold]{self.config.target}[/bold]"
+            f"Starting scan: [bold]{self.config.target}[/bold] (Profile: {self.config.depth})"
         )
         self.logger.info(
-            f"├── Modules: [cyan]{', '.join(modules_to_run)}[/cyan]"
+            f"├── Allowed Modules: [cyan]{', '.join(allowed_modules)}[/cyan]"
         )
         self.logger.info(
             f"├── Rate: {self.config.rate} req/s | "
@@ -160,26 +183,70 @@ class ScanScheduler:
 
         all_results = {}
         total_start = time.time()
-
-        for module_name in modules_to_run:
+        
+        # Simple BFS traversal of the DAG
+        queue = []
+        
+        # We start with the entry points and the initial target
+        for ep in pipeline.get_entry_points():
+            if ep in allowed_modules:
+                queue.append((ep, self.config.target))
+            
+        executed_nodes = set() # (module_name, target)
+        interrupted = False
+        
+        while queue:
+            current_module, current_target = queue.pop(0)
+            
+            node_id = f"{current_module}:{current_target}"
+            if node_id in executed_nodes:
+                continue
+            executed_nodes.add(node_id)
+            
             try:
-                result = await self.run_module(module_name)
+                # Temporarily override target config for run_module
+                original_target = self.config.target
+                self.config.target = current_target
+                try:
+                    result = await self.run_module(current_module)
+                finally:
+                    self.config.target = original_target
+                
                 if result:
-                    all_results[module_name] = result.to_dict()
+                    # Store results. We aggregate if multiple targets run the same module.
+                    if current_module not in all_results:
+                        all_results[current_module] = result.to_dict()
+                    else:
+                        all_results[current_module]["data"].extend(result.data)
+                        
+                    # Extract new targets for downstream
+                    new_targets = self._extract_downstream_targets(current_module, result.data)
+                    if not new_targets:
+                        # Fallback to the same target if module doesn't generate new ones
+                        new_targets = [current_target]
+                        
+                    downstreams = pipeline.get_downstream(current_module)
+                    for ds in downstreams:
+                        for nt in new_targets:
+                            queue.append((ds, nt))
+                            
             except KeyboardInterrupt:
                 self.logger.warning("Scan interrupted by user.")
                 await self.db.update_scan_status(self._scan_id, "interrupted")
+                interrupted = True
                 break
             except Exception as e:
                 self.logger.error(
-                    f"Module '{module_name}' failed: {e}"
+                    f"Module '{current_module}' failed on {current_target}: {e}"
                 )
-                all_results[module_name] = {"error": str(e)}
+                if current_module not in all_results:
+                    all_results[current_module] = {"error": str(e)}
 
         total_duration = round(time.time() - total_start, 2)
 
         # Update scan status
-        await self.db.update_scan_status(self._scan_id, "completed")
+        if not interrupted:
+            await self.db.update_scan_status(self._scan_id, "completed")
 
         self.logger.success(
             f"Scan complete in {total_duration}s | "
@@ -223,6 +290,25 @@ class ScanScheduler:
                     self.logger.error(f"AI Triage failed: {e}")
 
         return all_results
+        
+    def _extract_downstream_targets(self, module_name: str, data: list) -> list[str]:
+        """Extract URLs/domains from a module's output to feed into downstream modules."""
+        targets = []
+        for item in data:
+            if module_name == "subdomain":
+                domain = item.get("domain")
+                if domain: targets.append(domain)
+            elif module_name == "portscan":
+                # Only HTTP ports should go to httpprobe/vulnscan etc
+                port = item.get("port")
+                target = item.get("target")
+                if port in [80, 443, 8080, 8443] and target:
+                    protocol = "https" if port in [443, 8443] else "http"
+                    targets.append(f"{protocol}://{target}:{port}")
+            elif module_name == "httpprobe":
+                url = item.get("url")
+                if url: targets.append(url)
+        return list(set(targets))
 
     async def run_module(self, module_name: str):
         """Run a single module by name.

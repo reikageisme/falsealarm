@@ -30,10 +30,17 @@ class TokenBucketRateLimiter:
         rate: float = 30.0,
         burst: int = 10,
         per_host_rate: float | None = None,
+        adaptive: bool = False,
     ):
+        self.max_rate = rate
         self.rate = rate
         self.burst = burst
         self.per_host_rate = per_host_rate
+        self.adaptive = adaptive
+        
+        self.consecutive_errors = 0
+        self.consecutive_successes = 0
+        self._adaptive_lock = asyncio.Lock()
 
         # Global bucket
         self._tokens: float = float(burst)
@@ -112,3 +119,34 @@ class TokenBucketRateLimiter:
         self._tokens = float(self.burst)
         self._last_refill = time.monotonic()
         self._host_buckets.clear()
+
+    async def report_status(self, success: bool, status_code: int = 200) -> None:
+        """
+        Report the status of a request to adjust the rate adaptively.
+        If the server returns 429/503 or a connection/timeout error, we reduce the rate.
+        If we get stable successful responses, we slowly recover to max_rate.
+        """
+        if not self.adaptive:
+            return
+
+        async with self._adaptive_lock:
+            if not success or status_code in (429, 503):
+                self.consecutive_errors += 1
+                self.consecutive_successes = 0
+                
+                # If we get 3 consecutive rate limit / timeout errors, drop rate by 50%
+                if self.consecutive_errors >= 3:
+                    new_rate = max(1.0, self.rate * 0.5)
+                    if new_rate != self.rate:
+                        self.rate = new_rate
+                    self.consecutive_errors = 0
+            else:
+                self.consecutive_successes += 1
+                self.consecutive_errors = 0
+                
+                # Recover rate by 20% after 20 consecutive successful requests
+                if self.consecutive_successes >= 20 and self.rate < self.max_rate:
+                    new_rate = min(self.max_rate, self.rate * 1.2)
+                    if new_rate != self.rate:
+                        self.rate = new_rate
+                    self.consecutive_successes = 0

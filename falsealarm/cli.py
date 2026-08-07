@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from typing import Optional, List
+from rich.panel import Panel
+from rich.markdown import Markdown
 from falsealarm import __version__
 
 # Load environment variables from .env file
@@ -26,6 +28,8 @@ app = typer.Typer(
     rich_markup_mode="rich",
     help="FalseAlarm — Async Web Reconnaissance Engine"
 )
+
+SUPPORTED_COMMANDS = {"scan", "list-scans", "modules", "build-engine", "--help", "-h", "--version"}
 
 def version_callback(value: bool):
     if value:
@@ -50,6 +54,32 @@ def list_scans(
     
     asyncio.run(_list_scans())
 
+@app.command(name="modules")
+def list_modules():
+    """List installed scan modules and their descriptions."""
+    from falsealarm.modules.base import BaseModule
+    import falsealarm.modules as modules_pkg
+    import importlib
+    import inspect
+    import pkgutil
+    from rich.table import Table
+    from rich.console import Console
+
+    discovered: dict[str, str] = {}
+    prefix = modules_pkg.__name__ + "."
+    for _, module_name, _ in pkgutil.iter_modules(modules_pkg.__path__, prefix):
+        module_obj = importlib.import_module(module_name)
+        for _, cls in inspect.getmembers(module_obj, inspect.isclass):
+            if issubclass(cls, BaseModule) and cls is not BaseModule and cls.name:
+                discovered[cls.name] = cls.description
+
+    table = Table(title="Available scan modules")
+    table.add_column("Module", style="cyan")
+    table.add_column("Description")
+    for name in sorted(discovered):
+        table.add_row(name, discovered[name])
+    Console().print(table)
+
 @app.command(name="scan")
 def run_scan(
     url: Optional[str] = typer.Option(None, "-u", "--url", help="Target URL or domain"),
@@ -68,11 +98,18 @@ def run_scan(
     random_agent: bool = typer.Option(False, "--random-agent", help="Use random User-Agent"),
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
-    format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/csv/txt [default: txt]"),
+    format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/csv/txt/sarif [default: txt]"),
     silent: bool = typer.Option(False, "--silent", help="Only show results"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show debug info"),
     resume: Optional[str] = typer.Option(None, "--resume", help="Resume scan by ID"),
     ai_triage: bool = typer.Option(False, "--ai-triage", help="Enable AI-driven Triage and Vulnerability Analysis"),
+    diff: bool = typer.Option(False, "--diff", help="Compare results against the last completed scan of the same target"),
+    depth: str = typer.Option("normal", "--depth", help="Scan depth profile: quick/normal/deep/insane"),
+    adaptive_rate: bool = typer.Option(False, "--adaptive-rate", help="Auto-adjust rate on 429/503/timeout"),
+    notify_type: Optional[str] = typer.Option(None, "--notify-type", help="Notification platform: discord/slack/telegram"),
+    notify_webhook: Optional[str] = typer.Option(None, "--notify-webhook", help="Discord/Slack incoming webhook URL"),
+    telegram_token: Optional[str] = typer.Option(None, "--telegram-token", help="Telegram bot token (with --notify-type telegram)"),
+    telegram_chat_id: Optional[str] = typer.Option(None, "--telegram-chat-id", help="Telegram chat/channel ID (with --notify-type telegram)"),
     version: Optional[bool] = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version"),
 ):
     """
@@ -85,7 +122,9 @@ def run_scan(
                 module=module, all_modules=all_modules, quick=quick, threads=threads, rate=rate,
                 timeout=timeout, delay=delay, proxy=proxy, proxy_file=proxy_file, random_agent=random_agent,
                 wordlist=wordlist, output=output, format_type=format_type, silent=silent, verbose=verbose,
-                resume=resume, ai_triage=ai_triage
+                resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate, 
+                notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token, 
+                telegram_chat_id=telegram_chat_id,
             )
         )
     except KeyboardInterrupt:
@@ -97,7 +136,9 @@ async def _run_scan(
     module: Optional[str], all_modules: bool, quick: bool, threads: int, rate: int,
     timeout: int, delay: float, proxy: Optional[str], proxy_file: Optional[str], random_agent: bool,
     wordlist: Optional[str], output: Optional[str], format_type: str, silent: bool, verbose: bool,
-    resume: Optional[str], ai_triage: bool
+    resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal", 
+    adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None, 
+    telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
 ):
     from falsealarm.core.utils import sanitize_target
     logger = FalseAlarmLogger(silent=silent, verbose=verbose)
@@ -135,6 +176,8 @@ async def _run_scan(
             if output: config.output = output
             if silent: config.silent = silent
             if verbose: config.verbose = verbose
+            config.depth = depth
+            config.adaptive_rate = adaptive_rate
         except Exception as e:
             typer.secho(f"[!] Config Error: {e}", fg=typer.colors.RED)
             sys.exit(1)
@@ -157,6 +200,13 @@ async def _run_scan(
             wordlist=wordlist,
             resume=resume,
             ai_triage=ai_triage,
+            diff=diff,
+            depth=depth,
+            adaptive_rate=adaptive_rate,
+            notify_type=notify_type,
+            notify_webhook=notify_webhook,
+            telegram_token=telegram_token,
+            telegram_chat_id=telegram_chat_id,
         )
         
     try:
@@ -194,6 +244,28 @@ async def _run_scan(
     # We will currently run scans sequentially over targets
     db = Database()
     await db.init()
+
+    if config.resume:
+        scan = await db.get_scan(config.resume)
+        if not scan:
+            await db.close()
+            raise typer.BadParameter(f"Scan ID '{config.resume}' was not found.", param_hint="--resume")
+
+        restored = ScanConfig.from_dict(scan.get("config", {}))
+        restored.target = scan["target"]
+        restored.resume = config.resume
+        restored.silent = silent
+        restored.verbose = verbose
+        engine = AsyncEngine(restored)
+        scheduler = ScanScheduler(config=restored, engine=engine, db=db, logger=logger)
+        try:
+            scan_results = await scheduler.resume(config.resume)
+            if output:
+                await OutputManager.export(scan_results, output, format_type)
+        finally:
+            await engine.close()
+            await db.close()
+        return
     
     for current_target in targets:
         if not current_target:
@@ -215,7 +287,43 @@ async def _run_scan(
         
         # Modules are automatically registered during ScanScheduler initialization
         scan_results = await scheduler.run()
-        
+
+        # Diff against the previous completed scan of this target, and
+        # optionally push a notification with what changed.
+        if target_config.diff or target_config.notify_type:
+            from falsealarm.core.diff import diff_scan_results, format_diff_summary
+
+            previous = await db.get_last_completed_scan(
+                current_target, exclude_scan_id=scheduler.scan_id
+            )
+            if previous is not None:
+                changes = diff_scan_results(previous, scan_results)
+                summary = format_diff_summary(current_target, changes)
+
+                if not silent and target_config.diff:
+                    logger.console.print(Panel(
+                        Markdown(summary),
+                        title="[bold cyan]🔎 Diff vs. previous scan[/bold cyan]",
+                        border_style="cyan",
+                    ))
+
+                if changes and target_config.notify_type:
+                    from falsealarm.core.notify import NotifyManager, NotifyError
+                    try:
+                        notifier = NotifyManager(
+                            notify_type=target_config.notify_type,
+                            webhook_url=target_config.notify_webhook,
+                            telegram_token=target_config.telegram_token,
+                            telegram_chat_id=target_config.telegram_chat_id,
+                        )
+                        await notifier.send(summary, title=f"FalseAlarm — {current_target}")
+                        if not silent:
+                            logger.success("Notification sent.")
+                    except NotifyError as e:
+                        logger.error(f"Notification failed: {e}")
+            elif not silent and target_config.diff:
+                logger.info("No previous completed scan found for this target — nothing to diff against yet.")
+
         if not silent:
             for mod_name, mod_data in scan_results.items():
                 data = mod_data.get("data", [])
@@ -285,7 +393,7 @@ def main():
         print_banner(show_help=True)
         
     # Auto-inject 'scan' command for backward compatibility if the user just types `falsealarm -u ...`
-    if len(sys.argv) > 1 and sys.argv[1] not in ["scan", "list-scans", "build-engine", "--help", "-h", "--version"]:
+    if len(sys.argv) > 1 and sys.argv[1] not in SUPPORTED_COMMANDS:
         sys.argv.insert(1, "scan")
         
     app()

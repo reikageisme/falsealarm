@@ -1,12 +1,13 @@
 """
 FalseAlarm — Output Manager
 
-Export scan results to multiple formats: JSON, CSV, and TXT.
+Export scan results to multiple formats: JSON, CSV, TXT, and SARIF.
 Also provides Rich table formatting for terminal display.
 """
 
 import json
 import csv
+import hashlib
 from pathlib import Path
 from typing import Any
 from rich.table import Table
@@ -22,7 +23,7 @@ class OutputManager:
         Args:
             data: Data to export (list of dicts or dict).
             filepath: Output file path.
-            fmt: Format string: 'json', 'csv', 'table', or 'txt'.
+            fmt: Format string: 'json', 'csv', 'table', 'txt', or 'sarif'.
         """
         # Normalize data to list
         if isinstance(data, dict):
@@ -30,17 +31,15 @@ class OutputManager:
             for module_name, module_data in data.items():
                 if isinstance(module_data, dict) and "data" in module_data:
                     for item in module_data["data"]:
-                        item["_module"] = module_name
-                        flat.append(item)
+                        flat.append({**item, "_module": module_name})
                 elif isinstance(module_data, list):
                     for item in module_data:
-                        item["_module"] = module_name
-                        flat.append(item)
+                        flat.append({**item, "_module": module_name})
                 else:
                     flat.append({"_module": module_name, "result": str(module_data)})
             data = flat
 
-        if not data:
+        if not data and fmt != "sarif":
             return
 
         if fmt == "json":
@@ -49,6 +48,8 @@ class OutputManager:
             await OutputManager.export_csv(data, filepath)
         elif fmt == "txt":
             await OutputManager.export_txt(data, filepath)
+        elif fmt == "sarif":
+            await OutputManager.export_sarif(data, filepath)
         else:
             # Default to JSON
             await OutputManager.export_json(data, filepath)
@@ -100,6 +101,71 @@ class OutputManager:
                     for k, v in item.items():
                         f.write(f"{k}: {v}\n")
                     f.write("-" * 40 + "\n")
+
+    @staticmethod
+    async def export_sarif(data: list[dict[str, Any]], filepath: str) -> None:
+        """Export findings as SARIF 2.1.0 for GitHub Code Scanning and CI."""
+        severity_levels = {
+            "critical": "error",
+            "high": "error",
+            "medium": "warning",
+            "low": "note",
+            "info": "note",
+        }
+        rules: dict[str, dict[str, Any]] = {}
+        results: list[dict[str, Any]] = []
+
+        for item in data:
+            module = str(item.get("_module", "falsealarm"))
+            rule_id = str(item.get("vuln_id") or f"{module}-finding")
+            name = str(item.get("name") or item.get("title") or rule_id)
+            severity = str(item.get("severity", "info")).lower()
+            location = str(item.get("url") or item.get("target") or "")
+            message = str(item.get("description") or item.get("message") or name)
+
+            rules.setdefault(
+                rule_id,
+                {
+                    "id": rule_id,
+                    "name": name.replace(" ", "-")[:128],
+                    "shortDescription": {"text": name},
+                    "properties": {"tags": ["security", module], "severity": severity},
+                },
+            )
+            result: dict[str, Any] = {
+                "ruleId": rule_id,
+                "ruleIndex": list(rules).index(rule_id),
+                "level": severity_levels.get(severity, "note"),
+                "message": {"text": message},
+                "properties": {"module": module, "severity": severity},
+            }
+            if location:
+                result["locations"] = [
+                    {"physicalLocation": {"artifactLocation": {"uri": location}}}
+                ]
+            fingerprint_source = f"{rule_id}\0{location}\0{message}".encode("utf-8")
+            result["fingerprints"] = {
+                "falsealarm/v1": hashlib.sha256(fingerprint_source).hexdigest()
+            }
+            results.append(result)
+
+        sarif = {
+            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "FalseAlarm",
+                            "informationUri": "https://github.com/reikageisme/falsealarm",
+                            "rules": list(rules.values()),
+                        }
+                    },
+                    "results": results,
+                }
+            ],
+        }
+        await OutputManager.export_json(sarif, filepath)
 
     @staticmethod
     def format_table(

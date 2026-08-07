@@ -1,0 +1,6 @@
+# Development / CI dependencies — not needed to just run FalseAlarm,
+# only to test, lint, and type-check the codebase.
+pytest>=8.0
+pytest-asyncio>=0.23
+ruff>=0.4
+mypy>=1.10

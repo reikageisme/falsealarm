@@ -23,6 +23,15 @@ class ScanConfig:
     resume: str | None = None
     ports: str | None = None
     ai_triage: bool = False
+    diff: bool = False
+    adaptive_rate: bool = False
+    waf_detected: bool = False
+    waf_name: str | None = None
+    depth: str = "normal"
+    notify_type: str | None = None
+    notify_webhook: str | None = None
+    telegram_token: str | None = None
+    telegram_chat_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
@@ -60,3 +69,19 @@ class ScanConfig:
             raise ValueError("Threads must be a positive integer.")
         if self.rate <= 0:
             raise ValueError("Rate must be a positive integer.")
+        if self.timeout <= 0:
+            raise ValueError("Timeout must be a positive integer.")
+        if self.delay < 0:
+            raise ValueError("Delay cannot be negative.")
+        if self.depth not in {"quick", "normal", "deep", "insane"}:
+            raise ValueError("Depth must be one of: quick, normal, deep, insane.")
+        if self.format not in {"table", "json", "csv", "txt", "sarif"}:
+            raise ValueError("Output format must be one of: table, json, csv, txt, sarif.")
+        if self.notify_type not in {None, "discord", "slack", "telegram"}:
+            raise ValueError("Notification type must be discord, slack, or telegram.")
+        if self.notify_type in {"discord", "slack"} and not self.notify_webhook:
+            raise ValueError(f"A webhook URL is required for {self.notify_type} notifications.")
+        if self.notify_type == "telegram" and not (
+            self.telegram_token and self.telegram_chat_id
+        ):
+            raise ValueError("Telegram notifications require both token and chat ID.")

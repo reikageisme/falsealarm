@@ -7,6 +7,51 @@ from urllib.parse import urljoin
 from falsealarm.modules.base import BaseModule, ModuleResult
 from falsealarm.core.utils import get_data_path
 
+
+def evaluate_matchers(
+    matchers: list[dict],
+    status: int,
+    body: str,
+    matchers_condition: str = "or",
+) -> bool:
+    """Evaluate a template's matcher blocks against a response.
+
+    Each matcher is evaluated independently first (its own 'condition'
+    field only governs matching within that matcher's own value list,
+    e.g. multiple words). The individual results are then combined
+    using matchers_condition ('and'/'or') to decide the overall match.
+
+    This is a pure function (no I/O) so it can be unit tested directly
+    without spinning up the module, an HTTP engine, or a logger.
+    """
+    matcher_results = []
+    for matcher in matchers:
+        m_type = matcher.get("type", "")
+        m_condition = matcher.get("condition", "or")
+
+        if m_type == "status":
+            expected_statuses = matcher.get("status", [])
+            matcher_results.append(status in expected_statuses)
+
+        elif m_type == "word":
+            expected_words = matcher.get("words", [])
+            hits = [w in body for w in expected_words]
+            if m_condition == "and":
+                matcher_results.append(all(hits) if hits else False)
+            else:
+                matcher_results.append(any(hits))
+
+        else:
+            # Unknown matcher type: don't silently treat as a pass.
+            matcher_results.append(False)
+
+    if not matcher_results:
+        return False
+    if matchers_condition == "and":
+        return all(matcher_results)
+    return any(matcher_results)
+
+
 class VulnScanModule(BaseModule):
     name = "vulnscan"
     description = "YAML-based Vulnerability Detection Engine"
@@ -54,6 +99,11 @@ class VulnScanModule(BaseModule):
 
         async def execute_template(template: dict):
             vulns = []
+            # Top-level condition combining multiple matcher blocks together
+            # (separate from each matcher's own internal 'condition' field,
+            # which only applies to that matcher's own list of values).
+            matchers_condition = template.get("matchers-condition", "or")
+
             for req in template.get("requests", []):
                 method = req.get("method", "GET")
                 path = req.get("path", "/")
@@ -82,39 +132,8 @@ class VulnScanModule(BaseModule):
 
                         status = response.get("status", 0)
                         body = response.get("body", "")
-                        
-                        matched = False
-                        for matcher in matchers:
-                            m_type = matcher.get("type", "")
-                            m_condition = matcher.get("condition", "and")
-                            
-                            # Simple Status Matcher
-                            if m_type == "status":
-                                expected_statuses = matcher.get("status", [])
-                                if status in expected_statuses:
-                                    matched = True
-                                else:
-                                    matched = False
-                                    if m_condition == "and": break
-                            
-                            # Simple Word Matcher
-                            elif m_type == "word":
-                                expected_words = matcher.get("words", [])
-                                word_matched = False
-                                for word in expected_words:
-                                    if word in body:
-                                        word_matched = True
-                                        if m_condition == "or": break
-                                    else:
-                                        if m_condition == "and":
-                                            word_matched = False
-                                            break
-                                            
-                                if not word_matched:
-                                    matched = False
-                                    if m_condition == "and": break
-                                else:
-                                    matched = True
+
+                        matched = evaluate_matchers(matchers, status, body, matchers_condition)
 
                         if matched:
                             vuln_info = template.get("info", {})
