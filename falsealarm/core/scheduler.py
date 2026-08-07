@@ -132,6 +132,7 @@ class ScanScheduler:
         """
         from falsealarm.core.pipeline import PipelineManager
         from falsealarm.core.waf_detect import detect_waf
+        from falsealarm.core.utils import canonical_url
         
         pipeline = PipelineManager(self.config)
         requested_modules = pipeline.get_allowed_modules()
@@ -197,7 +198,8 @@ class ScanScheduler:
         
         while queue:
             current_module, current_target = queue.pop(0)
-            
+
+            current_target = canonical_url(current_target)
             node_id = f"{current_module}:{current_target}"
             if node_id in executed_nodes:
                 continue
@@ -221,7 +223,7 @@ class ScanScheduler:
                         
                     # Extract new targets for downstream
                     new_targets = self._extract_downstream_targets(current_module, result.data)
-                    if not new_targets:
+                    if not new_targets and current_module not in {"subdomain", "portscan", "httpprobe"}:
                         # Fallback to the same target if module doesn't generate new ones
                         new_targets = [current_target]
                         
@@ -293,6 +295,8 @@ class ScanScheduler:
         
     def _extract_downstream_targets(self, module_name: str, data: list) -> list[str]:
         """Extract URLs/domains from a module's output to feed into downstream modules."""
+        from falsealarm.core.utils import canonical_url
+
         targets = []
         for item in data:
             if module_name == "subdomain":
@@ -302,13 +306,14 @@ class ScanScheduler:
                 # Only HTTP ports should go to httpprobe/vulnscan etc
                 port = item.get("port")
                 target = item.get("target")
-                if port in [80, 443, 8080, 8443] and target:
+                if port in [8080, 8443] and target:
                     protocol = "https" if port in [443, 8443] else "http"
                     targets.append(f"{protocol}://{target}:{port}")
             elif module_name == "httpprobe":
                 url = item.get("url")
-                if url: targets.append(url)
-        return list(set(targets))
+                if url and item.get("alive"):
+                    targets.append(url)
+        return list(dict.fromkeys(canonical_url(target) for target in targets if target))
 
     async def run_module(self, module_name: str):
         """Run a single module by name.

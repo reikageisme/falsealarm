@@ -1,4 +1,5 @@
 import json
+import asyncio
 import urllib.parse
 from typing import Any
 from falsealarm.modules.base import BaseModule, ModuleResult
@@ -10,7 +11,7 @@ class WaybackModule(BaseModule):
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
         results: list[dict[str, Any]] = []
-        stats = {"urls_found": 0, "sensitive_extensions": 0}
+        stats = {"urls_found": 0, "sensitive_extensions": 0, "retries": 0, "api_status": None}
 
         # Clean target to get domain
         if target.startswith("http"):
@@ -27,7 +28,30 @@ class WaybackModule(BaseModule):
         sensitive_exts = ('.php', '.asp', '.aspx', '.jsp', '.env', '.bak', '.old', '.zip', '.sql', '.json', '.xml', '.config')
 
         try:
-            response = await self.engine.get(cdx_url, headers={"Accept": "application/json"})
+            response = {}
+            for attempt in range(3):
+                response = await self.engine.get(cdx_url, headers={"Accept": "application/json"})
+                stats["api_status"] = response.get("status")
+                if response.get("status") != 429:
+                    break
+                if attempt < 2:
+                    stats["retries"] += 1
+                    retry_after = next(
+                        (
+                            value
+                            for key, value in response.get("headers", {}).items()
+                            if key.lower() == "retry-after"
+                        ),
+                        "",
+                    )
+                    try:
+                        wait_seconds = min(max(float(retry_after), 1.0), 10.0)
+                    except (TypeError, ValueError):
+                        wait_seconds = float(2 ** attempt)
+                    self.logger.warning(
+                        f"Wayback API rate limited the request; retrying in {wait_seconds:g}s..."
+                    )
+                    await asyncio.sleep(wait_seconds)
             
             if not response.get("error") and response.get("status") == 200:
                 try:

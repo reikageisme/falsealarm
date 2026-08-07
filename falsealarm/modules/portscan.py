@@ -17,7 +17,14 @@ class PortScanModule(BaseModule):
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
         results: list[dict[str, Any]] = []
-        stats = {"ports_scanned": 0, "open_ports": 0, "closed_ports": 0}
+        edge_provider = self.config.waf_name if self.config.waf_detected else None
+        stats = {
+            "ports_scanned": 0,
+            "open_ports": 0,
+            "closed_ports": 0,
+            "network_context": "cdn_edge" if edge_provider else "target_host",
+            "edge_provider": edge_provider,
+        }
 
         # Parse target to get hostname/IP
         if target.startswith("http"):
@@ -38,6 +45,11 @@ class PortScanModule(BaseModule):
                 self.logger.warning(f"Invalid ports format '{self.config.ports}'. Using default top ports.")
 
         self.logger.info(f"Scanning {len(ports_to_scan)} TCP ports on {target}...")
+        if edge_provider:
+            self.logger.warning(
+                f"{target} resolves through {edge_provider}; open ports describe the edge network, "
+                "not confirmed origin exposure."
+            )
 
         # Connection timeout
         conn_timeout = max(1, self.config.timeout // 2)
@@ -59,7 +71,9 @@ class PortScanModule(BaseModule):
                         "target": target,
                         "port": port,
                         "state": "open",
-                        "protocol": "tcp"
+                        "protocol": "tcp",
+                        "network_context": "cdn_edge" if edge_provider else "target_host",
+                        "edge_provider": edge_provider,
                     }
                 except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
                     stats["closed_ports"] += 1

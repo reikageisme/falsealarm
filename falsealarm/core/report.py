@@ -6,7 +6,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from falsealarm.core.utils import get_timestamp
+from falsealarm.core.utils import canonical_url, get_timestamp
 
 
 class PentestReport:
@@ -21,9 +21,26 @@ class PentestReport:
 
     @classmethod
     def render(cls, target: str, results: dict[str, Any]) -> str:
-        live = [item for item in cls._items(results, "httpprobe") if item.get("alive")]
-        subdomains = cls._items(results, "subdomain")
-        ports = cls._items(results, "portscan")
+        live_by_url: dict[str, dict[str, Any]] = {}
+        for item in cls._items(results, "httpprobe"):
+            if item.get("alive") and item.get("url"):
+                normalized = canonical_url(str(item["url"]))
+                live_by_url.setdefault(normalized, {**item, "url": normalized})
+        live = list(live_by_url.values())
+        subdomains = {
+            str(item.get("domain", "")).lower().rstrip(".")
+            for item in cls._items(results, "subdomain")
+            if item.get("domain")
+        }
+        ports = {
+            (str(item.get("target", "")).lower(), item.get("port"))
+            for item in cls._items(results, "portscan")
+            if item.get("port")
+        }
+        edge_ports = any(
+            item.get("network_context") == "cdn_edge"
+            for item in cls._items(results, "portscan")
+        )
         directories = cls._items(results, "dirfuzz")
         historical = cls._items(results, "wayback")
         js_results = cls._items(results, "js_analysis")
@@ -35,10 +52,10 @@ class PentestReport:
         endpoints: set[str] = set()
         for item in directories + historical:
             if item.get("url"):
-                endpoints.add(str(item["url"]))
+                endpoints.add(canonical_url(str(item["url"])))
         exposed_secrets = []
         for item in js_results:
-            endpoints.update(str(value) for value in item.get("endpoints", []))
+            endpoints.update(canonical_url(str(value)) for value in item.get("endpoints", []) if value)
             exposed_secrets.extend(item.get("secrets", []))
 
         tech_names = []
@@ -53,12 +70,16 @@ class PentestReport:
                 findings.append(("high", str(item.get("vulnerability", "CORS misconfiguration")), str(item.get("target", ""))))
         for item in ssl_items:
             missing = item.get("missing_headers", [])
-            if missing:
+            if item.get("type") == "security_headers" and missing:
                 findings.append(("low", f"Missing security headers: {', '.join(missing)}", str(item.get("target", ""))))
         for secret in exposed_secrets:
             findings.append(("high", f"Potential client-side secret: {secret.get('type', 'unknown')}", "JavaScript asset"))
 
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        findings = list(dict.fromkeys(
+            (severity, name, canonical_url(evidence) if "://" in evidence else evidence)
+            for severity, name, evidence in findings
+        ))
         findings.sort(key=lambda finding: severity_order.get(finding[0].lower(), 5))
         severity_counts = Counter(severity.lower() for severity, _, _ in findings)
 
@@ -127,6 +148,10 @@ class PentestReport:
             f"Modules with recorded output: {', '.join(sorted(k for k, v in results.items() if isinstance(v, dict) and v.get('data')) ) or 'none'}.",
             f"Finding severities: {', '.join(f'{key}={value}' for key, value in sorted(severity_counts.items())) or 'none'}.",
         ])
+        if edge_ports:
+            lines.append(
+                "Port results were observed on a CDN/WAF edge and do not confirm that the origin exposes those services."
+            )
         return "\n".join(lines) + "\n"
 
     @classmethod

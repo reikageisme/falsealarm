@@ -14,6 +14,7 @@ class ScanConfig:
     proxy: str | None = None
     proxy_file: str | None = None
     random_agent: bool = False
+    include_third_party_js: bool = False
     http2: bool = False
     output: str | None = None
     report: str | None = None

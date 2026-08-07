@@ -29,7 +29,6 @@ class PipelineManager:
         
         self.graph = {
             "subdomain": ["httpprobe"],
-            "dns": ["httpprobe"],
             "httpprobe": ["tech", "ssl", "cors", "dirfuzz", "websocket", "js_analysis"],
             "tech": ["vulnscan"],
             "portscan": ["httpprobe"],
@@ -76,6 +75,14 @@ class PipelineManager:
                     
         # Entry points are allowed modules that have no upstream
         entry_points = [m for m in allowed if m not in has_upstream]
+
+        # Always probe the explicitly supplied root once. Port discovery only
+        # contributes non-default web ports and subdomain discovery contributes
+        # newly found hosts.
+        if "httpprobe" in allowed and "httpprobe" not in entry_points:
+            insert_at = allowed.index("httpprobe")
+            prior_entries = sum(1 for name in allowed[:insert_at] if name in entry_points)
+            entry_points.insert(prior_entries, "httpprobe")
         
         # If the user only selected downstream modules explicitly (e.g. -m vulnscan)
         # then those become the entry points.

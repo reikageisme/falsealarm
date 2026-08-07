@@ -92,7 +92,7 @@ func main() {
 	if err := client.Do(reqBase, resBase); err == nil {
 		baselineStatus = resBase.StatusCode()
 		baselineLen = len(resBase.Body())
-		if baselineStatus == 200 || baselineStatus == 301 || baselineStatus == 302 {
+		if baselineStatus != 0 && baselineStatus != 404 {
 			hasBaseline = true
 		}
 	}
@@ -138,7 +138,8 @@ func main() {
 						isFP := false
 						if hasBaseline && status == baselineStatus {
 							diff := math.Abs(float64(bodyLen - baselineLen))
-							if diff < 50 { // If length matches baseline within 50 bytes tolerance
+							tolerance := math.Max(50, float64(baselineLen)*0.03)
+							if diff <= tolerance {
 								isFP = true
 							}
 						}

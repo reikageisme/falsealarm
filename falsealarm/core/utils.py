@@ -1,7 +1,7 @@
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 from typing import Any
 
 def is_valid_domain(domain: str) -> bool:
@@ -22,6 +22,36 @@ def normalize_url(url: str) -> str:
     if not url.startswith(('http://', 'https://')):
         return f"https://{url}"
     return url
+
+
+def canonical_url(url: str) -> str:
+    """Normalize equivalent HTTP URLs for deduplication.
+
+    Default ports are removed, scheme/host are lower-cased, fragments are
+    discarded, and a root trailing slash is omitted. Non-URL targets are
+    returned lower-cased without a trailing dot.
+    """
+    value = str(url).strip()
+    if not value:
+        return ""
+    if "://" not in value:
+        return value.lower().rstrip(".")
+
+    try:
+        parsed = urlsplit(value)
+        scheme = parsed.scheme.lower()
+        hostname = (parsed.hostname or "").lower().rstrip(".")
+        if not hostname:
+            return value
+        port = parsed.port
+        if (scheme == "http" and port == 80) or (scheme == "https" and port == 443):
+            port = None
+        host = f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+        netloc = f"{host}:{port}" if port else host
+        path = parsed.path.rstrip("/") if parsed.path in {"", "/"} else parsed.path
+        return urlunsplit((scheme, netloc, path, parsed.query, ""))
+    except ValueError:
+        return value
 
 def sanitize_target(target: str) -> str:
     """

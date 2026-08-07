@@ -5,6 +5,7 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from pyjsparser import parse
 from falsealarm.modules.base import BaseModule, ModuleResult
+from falsealarm.core.utils import canonical_url
 
 class JSAnalysisModule(BaseModule):
     name = "js_analysis"
@@ -22,7 +23,9 @@ class JSAnalysisModule(BaseModule):
     }
     
     # Regex for endpoints
-    ENDPOINT_PATTERN = r'((?:https?://|/|./|../)(?:[\w0-9\-_\.]+/)*[\w0-9\-_\.]+\.(?:json|php|asp|aspx|jsp|api|js|html)|/api/[\w0-9\-_\./]+)'
+    ENDPOINT_PATTERN = re.compile(
+        r'["\'](https?://[^"\'\\\s]+|/[A-Za-z0-9._~-][A-Za-z0-9._~/?#=&%+:-]*)["\']'
+    )
 
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
@@ -71,14 +74,12 @@ class JSAnalysisModule(BaseModule):
                                 stats["secrets_found"] += 1
 
                     # Extract Endpoints via Regex
-                    endpoints = re.findall(self.ENDPOINT_PATTERN, js_code)
+                    endpoints = self.ENDPOINT_PATTERN.findall(js_code)
                     if endpoints:
                         for ep in endpoints:
-                            # Basic cleanup
-                            ep = ep.strip('\'" \n\r')
-                            if len(ep) > 3:
-                                found_endpoints.add(ep)
-                                stats["endpoints_extracted"] += 1
+                            normalized = self._normalize_endpoint(ep, target)
+                            if normalized:
+                                found_endpoints.add(normalized)
 
                     # AST Analysis (Optional/Basic)
                     # We can use pyjsparser to find string literals, but regex is often faster
@@ -113,6 +114,12 @@ class JSAnalysisModule(BaseModule):
                 if r:
                     results.append(r)
 
+            stats["endpoints_extracted"] = len({
+                endpoint
+                for item in results
+                for endpoint in item.get("endpoints", [])
+            })
+
         except Exception as e:
             self.logger.error(f"JS Analysis failed: {e}")
 
@@ -127,10 +134,23 @@ class JSAnalysisModule(BaseModule):
             for tag in script_tags:
                 src = tag['src']
                 full_url = urljoin(base_url, src)
-                # Ensure we only analyze JS from the target domain (or all, depending on preference)
-                # For safety, let's include all to find leaked API keys in 3rd party scripts
-                urls.append(full_url)
+                if self.config.include_third_party_js or self._same_origin(full_url, base_url):
+                    urls.append(canonical_url(full_url))
             # Remove duplicates
-            return list(set(urls))
+            return list(dict.fromkeys(urls))
         except Exception:
             return []
+
+    @staticmethod
+    def _same_origin(candidate: str, target: str) -> bool:
+        candidate_host = (urlparse(candidate).hostname or "").lower()
+        target_host = (urlparse(target).hostname or "").lower()
+        return bool(candidate_host and candidate_host == target_host)
+
+    @classmethod
+    def _normalize_endpoint(cls, endpoint: str, target: str) -> str | None:
+        if endpoint.startswith(("http://", "https://")):
+            return canonical_url(endpoint) if cls._same_origin(endpoint, target) else None
+        if endpoint.startswith("/") and not endpoint.startswith("//"):
+            return canonical_url(urljoin(target, endpoint))
+        return None

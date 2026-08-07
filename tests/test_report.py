@@ -45,3 +45,33 @@ async def test_report_export_creates_parent_directories(tmp_path):
 
     assert destination.exists()
     assert "No automated vulnerability finding" in destination.read_text(encoding="utf-8")
+
+
+def test_report_deduplicates_default_ports_and_header_findings():
+    results = {
+        "httpprobe": {
+            "data": [
+                {"url": "https://example.com", "status": 200, "alive": True},
+                {"url": "https://example.com:443/", "status": 200, "alive": True},
+            ]
+        },
+        "ssl": {
+            "data": [
+                {
+                    "type": "security_headers",
+                    "target": "https://example.com",
+                    "missing_headers": ["Content-Security-Policy"],
+                },
+                {
+                    "type": "security_headers",
+                    "target": "https://example.com:443/",
+                    "missing_headers": ["Content-Security-Policy"],
+                },
+            ]
+        },
+    }
+
+    report = PentestReport.render("example.com", results)
+
+    assert "Live HTTP services | 1" in report
+    assert "Automated findings | 1" in report

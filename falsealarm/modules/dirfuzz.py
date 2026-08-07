@@ -9,6 +9,21 @@ from urllib.parse import urlparse, urljoin
 from falsealarm.modules.base import BaseModule, ModuleResult
 from falsealarm.core.utils import get_data_path
 
+
+def is_baseline_match(
+    status: int,
+    length: int,
+    baseline_status: int,
+    baseline_length: int,
+    tolerance: int,
+) -> bool:
+    """Return whether a fuzz response is indistinguishable from the catch-all."""
+    return (
+        baseline_status not in (0, 404)
+        and status == baseline_status
+        and abs(length - baseline_length) <= tolerance
+    )
+
 class DirFuzzModule(BaseModule):
     name = "dirfuzz"
     description = "Advanced Parameter & Directory Fuzzing"
@@ -41,7 +56,28 @@ class DirFuzzModule(BaseModule):
         # We send a request to a highly unlikely path/param to see the server's default behavior
         random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
         baseline_url = target.replace("FUZZ", random_str) if has_fuzz else urljoin(target, f"wildcard_test_{random_str}")
-        
+
+        self.logger.info(f"Generating false-positive baseline with payload: {random_str}")
+        baseline_resp = await self.engine.get(baseline_url, allow_redirects=False)
+        baseline_status = baseline_resp.get("status", 0)
+        baseline_length = baseline_resp.get("content_length", 0)
+        use_baseline = baseline_status not in (0, 404)
+        baseline_tolerance = max(50, int(baseline_length * 0.03))
+        if use_baseline:
+            self.logger.warning(
+                f"Target has a catch-all response ({baseline_status}, {baseline_length} bytes). "
+                "Engaging Smart Filter."
+            )
+
+        def matches_baseline(status: int, length: int) -> bool:
+            return is_baseline_match(
+                status,
+                length,
+                baseline_status,
+                baseline_length,
+                baseline_tolerance,
+            )
+
         # Check if Go engine exists
         if sys.platform == "win32":
             binary_name = "dirfuzz-engine.exe"
@@ -84,13 +120,17 @@ class DirFuzzModule(BaseModule):
                             continue
                         
                         url = r.get("url")
-                        status = r.get("status")
-                        length = r.get("length")
-                        
+                        status = int(r.get("status") or 0)
+                        length = int(r.get("length") or 0)
+
+                        if matches_baseline(status, length):
+                            stats["false_positives_dropped"] += 1
+                            continue
+
                         if url:
                             item = {
                                 "type": "fuzz" if has_fuzz else "directory",
-                                "payload": url.split("/")[-1],
+                                "payload": urlparse(url).path.rstrip("/").split("/")[-1],
                                 "url": url,
                                 "status": status,
                                 "length": length
@@ -120,18 +160,6 @@ class DirFuzzModule(BaseModule):
         else:
             self.logger.warning("Go binary not found. Running in Python Async Engine fallback mode...")
 
-        
-        self.logger.info(f"Generating false-positive baseline with payload: {random_str}")
-        baseline_resp = await self.engine.get(baseline_url, allow_redirects=False)
-        baseline_status = baseline_resp.get("status", 0)
-        baseline_length = baseline_resp.get("content_length", 0)
-        
-        # Only use baseline if it returns an unusual 200 OK or similar catch-all response
-        use_baseline = False
-        if baseline_status in [200, 301, 302]:
-            self.logger.warning(f"Target has a catch-all mechanism (Returns {baseline_status} for {baseline_length} bytes). Engaging Smart Filter.")
-            use_baseline = True
-        
         mode_str = "Parameter Fuzzing" if has_fuzz else "Directory Fuzzing"
         self.logger.info(f"Starting {mode_str} with {len(paths_to_test)} payloads on {target}...")
 
@@ -149,10 +177,9 @@ class DirFuzzModule(BaseModule):
                         length = response.get("content_length", 0)
                         
                         # False Positive Smart Filter
-                        if use_baseline:
-                            if status == baseline_status and (baseline_length - 50 <= length <= baseline_length + 50):
-                                stats["false_positives_dropped"] += 1
-                                return None
+                        if matches_baseline(status, length):
+                            stats["false_positives_dropped"] += 1
+                            return None
 
                         if status != 404 and status != 0:
                             item = {

@@ -96,6 +96,7 @@ def run_scan(
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL (http:// or socks5://)"),
     proxy_file: Optional[str] = typer.Option(None, "--proxy-file", help="File with proxy list"),
     random_agent: bool = typer.Option(False, "--random-agent", help="Use random User-Agent"),
+    include_third_party_js: bool = typer.Option(False, "--include-third-party-js", help="Analyze third-party JavaScript assets (noisier)"),
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
     report: Optional[str] = typer.Option(None, "--report", help="Write a pentest-ready Markdown attack-surface report"),
@@ -122,6 +123,7 @@ def run_scan(
                 url=url, target_list=target_list, config_file=config_file, profile=profile,
                 module=module, all_modules=all_modules, quick=quick, threads=threads, rate=rate,
                 timeout=timeout, delay=delay, proxy=proxy, proxy_file=proxy_file, random_agent=random_agent,
+                include_third_party_js=include_third_party_js,
                 wordlist=wordlist, output=output, report=report, format_type=format_type, silent=silent, verbose=verbose,
                 resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate, 
                 notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token, 
@@ -136,6 +138,7 @@ async def _run_scan(
     url: Optional[str], target_list: Optional[str], config_file: Optional[str], profile: str,
     module: Optional[str], all_modules: bool, quick: bool, threads: int, rate: int,
     timeout: int, delay: float, proxy: Optional[str], proxy_file: Optional[str], random_agent: bool,
+    include_third_party_js: bool,
     wordlist: Optional[str], output: Optional[str], report: Optional[str], format_type: str, silent: bool, verbose: bool,
     resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal", 
     adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None, 
@@ -178,6 +181,7 @@ async def _run_scan(
             if report: config.report = report
             if silent: config.silent = silent
             if verbose: config.verbose = verbose
+            if include_third_party_js: config.include_third_party_js = True
             config.depth = depth
             config.adaptive_rate = adaptive_rate
         except Exception as e:
@@ -195,6 +199,7 @@ async def _run_scan(
             proxy=proxy,
             proxy_file=proxy_file,
             random_agent=random_agent,
+            include_third_party_js=include_third_party_js,
             output=output,
             report=report,
             format=format_type,

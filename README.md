@@ -193,6 +193,10 @@ testing queue. A clean automated scan is not evidence that an application is
 secure; authorization, session, business-logic, and authenticated workflows
 still require a human tester and an intercepting proxy.
 
+JavaScript analysis is same-origin by default to keep findings inside scope and
+reduce vendor-library noise. Use `--include-third-party-js` only when the rules
+of engagement explicitly include external assets or supply-chain review.
+
 ### Standard Reconnaissance
 ```bash
 # 1. Comprehensive mapping (All modules)

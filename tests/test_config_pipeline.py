@@ -83,6 +83,7 @@ def test_all_pipeline_entry_points_are_independent_collectors():
         "dns",
         "subdomain",
         "portscan",
+        "httpprobe",
         "wayback",
     ]
 

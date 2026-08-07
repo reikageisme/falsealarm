@@ -27,7 +27,20 @@ class HeadersSSLModule(BaseModule):
             response = await self.engine.get(target, allow_redirects=False)
             if not response.get("error"):
                 headers = response.get("headers", {})
-                
+                if parsed.scheme == "http":
+                    location = next(
+                        (v for k, v in headers.items() if k.lower() == "location"),
+                        "",
+                    )
+                    results.append({
+                        "type": "https_redirect",
+                        "target": target,
+                        "status": response.get("status"),
+                        "location": location,
+                        "secure": location.lower().startswith("https://"),
+                    })
+                    return self._make_result(target, results, stats)
+
                 # Check standard security headers
                 security_headers = {
                     "Strict-Transport-Security": "HSTS",
@@ -59,7 +72,7 @@ class HeadersSSLModule(BaseModule):
         if port == 443 or parsed.scheme == "https":
             ssl_info = await self._get_ssl_cert(hostname, port)
             if ssl_info:
-                stats["ssl_valid"] = True
+                stats["ssl_valid"] = bool(ssl_info.get("valid"))
                 results.append({
                     "type": "ssl_certificate",
                     "target": hostname,
@@ -72,8 +85,6 @@ class HeadersSSLModule(BaseModule):
         """Fetch SSL certificate information asynchronously using thread execution."""
         def fetch_cert():
             context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
             try:
                 with socket.create_connection((hostname, port), timeout=5) as sock:
                     with context.wrap_socket(sock, server_hostname=hostname) as ssock:
@@ -99,6 +110,7 @@ class HeadersSSLModule(BaseModule):
                             sans.append(val)
 
                         return {
+                            "valid": True,
                             "issuer": issuer.get("organizationName", issuer.get("commonName", "Unknown")),
                             "subject": subject.get("commonName", hostname),
                             "valid_from": cert.get("notBefore", ""),
@@ -109,6 +121,6 @@ class HeadersSSLModule(BaseModule):
                         }
             except Exception as e:
                 self.logger.debug(f"SSL fetch failed for {hostname}: {e}")
-                return None
+                return {"valid": False, "error": f"{type(e).__name__}: {e}"}
                 
         return await asyncio.to_thread(fetch_cert)
