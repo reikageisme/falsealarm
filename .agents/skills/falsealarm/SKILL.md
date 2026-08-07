@@ -23,7 +23,7 @@ FalseAlarm is an Advanced Async Web Reconnaissance Framework combining a Python 
 - **Compile Go Engine**: `python -m falsealarm build-engine`
 - **CLI Entry Point**: `falsealarm`
   - *Comprehensive Scan*: `falsealarm scan -u <url> -A`
-  - *Targeted Scan (e.g. DNS)*: `falsealarm scan -u <url> -m dns,techdetect`
+  - *Targeted Scan (e.g. DNS + technology)*: `falsealarm scan -u <url> -m dns,tech`
   - *High-Speed Directory Fuzzing*: `falsealarm scan -u <url>/FUZZ -m dirfuzz -t 100 -w common.txt`
 
 ## Development Guidelines

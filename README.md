@@ -122,7 +122,7 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 | `dns` | Deep Record Enumeration (A, AAAA, MX, NS, TXT, SOA, AXFR, SPF, DMARC) | Passive/Active | Production |
 | `subdomain` | Multi-source Subdomain Enumeration (crt.sh, TLS certs, DNS brute) | Active | Production |
 | `httpprobe` | Liveness Probing + Similarity Hashing for false positive reduction | Active | Production |
-| `techdetect` | Fingerprinting (CMS, Frameworks, WAF, CDN) via Headers & DOM | Active | Production |
+| `tech` | Fingerprinting (CMS, Frameworks, WAF, CDN) via Headers & DOM | Active | Production |
 | `dirfuzz` | Polyglot (Go + Python) High-Speed Path/Directory Fuzzing (NDJSON Streaming) | Aggressive | Production |
 | `js_analysis` | JavaScript AST Parsing for hidden API endpoints & hardcoded secrets | Active | Production |
 | `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | Production |
@@ -169,13 +169,37 @@ docker run -it --rm reikageisme/falsealarm scan -u example.com -A
 
 The FalseAlarm CLI is built for speed and intuition.
 
+### Pre-Pentest Workflow
+
+FalseAlarm produces a repeatable attack-surface baseline before manual testing
+begins. Start with the least intrusive profile and expand only when the rules
+of engagement authorize active enumeration.
+
+```bash
+# Fast baseline: live HTTP services and TLS/security-header posture
+falsealarm scan -u example.com -q --report quick-baseline.md
+
+# Application mapping: fingerprinting, archived URLs, JavaScript endpoints,
+# CORS, WebSockets, directory discovery, and template checks
+falsealarm scan -u example.com --depth deep --report attack-surface.md
+
+# Full authorized reconnaissance: DNS, subdomains, ports, and every web module
+falsealarm scan -u example.com -A --adaptive-rate --diff \
+  -o falsealarm.sarif -f sarif --report pentest-handoff.md
+```
+
+The Markdown handoff separates automated evidence from a prioritized manual
+testing queue. A clean automated scan is not evidence that an application is
+secure; authorization, session, business-logic, and authenticated workflows
+still require a human tester and an intercepting proxy.
+
 ### Standard Reconnaissance
 ```bash
 # 1. Comprehensive mapping (All modules)
 falsealarm scan -u example.com -A
 
 # 2. Targeted modular scan (DNS and Tech only)
-falsealarm scan -u example.com -m dns,techdetect
+falsealarm scan -u example.com -m dns,tech
 
 # 3. Multi-target file or CIDR range scan
 falsealarm scan -iL targets.txt -q
@@ -204,6 +228,9 @@ falsealarm scan -u example.com -A -o results.json -f json
 
 # Export SARIF for GitHub Code Scanning and security CI pipelines
 falsealarm scan -u example.com -A -o falsealarm.sarif -f sarif
+
+# Produce a pentester handoff with attack surface, priorities, and a manual test queue
+falsealarm scan -u example.com -A --report pentest-report.md
 
 # List historical scans
 falsealarm list-scans
@@ -242,7 +269,7 @@ async def automate_recon():
     # 1. Define scanning parameters
     config = ScanConfig(
         target="example.com",
-        modules=["techdetect"],
+        modules=["tech"],
         threads=20,
         timeout=10
     )

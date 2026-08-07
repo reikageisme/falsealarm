@@ -13,34 +13,45 @@ class PipelineManager:
     """
     def __init__(self, config: ScanConfig):
         self.config = config
+
+        self.aliases = {
+            "headers_ssl": "ssl",
+            "techdetect": "tech",
+        }
         
         # The DAG mapping: upstream -> list of downstreams
         # Based on the blueprint:
         # subdomain -> httpprobe
         # dns -> httpprobe
-        # httpprobe -> techdetect, dirfuzz, headers_ssl, cors, websocket, js_analysis
-        # techdetect -> vulnscan
+        # httpprobe -> tech, dirfuzz, ssl, cors, websocket, js_analysis
+        # tech -> vulnscan
         # portscan runs parallel/independent initially, but open HTTP ports feed back into httpprobe.
         
         self.graph = {
             "subdomain": ["httpprobe"],
             "dns": ["httpprobe"],
-            "httpprobe": ["techdetect", "dirfuzz", "headers_ssl", "cors", "websocket", "js_analysis"],
-            "techdetect": ["vulnscan"],
-            "portscan": [] # Portscan feeds httpprobe dynamically in the scheduler
+            "httpprobe": ["tech", "ssl", "cors", "dirfuzz", "websocket", "js_analysis"],
+            "tech": ["vulnscan"],
+            "portscan": ["httpprobe"],
         }
-        
+
         self.depth_profiles = {
-            "quick": ["httpprobe", "headers_ssl"],
-            "normal": ["httpprobe", "headers_ssl", "techdetect", "vulnscan", "cors"],
-            "deep": ["httpprobe", "headers_ssl", "techdetect", "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis"],
-            "insane": ["httpprobe", "headers_ssl", "techdetect", "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis", "portscan", "dns", "subdomain"]
+            "quick": ["httpprobe", "ssl"],
+            "normal": ["httpprobe", "ssl", "tech", "vulnscan", "cors"],
+            "deep": ["httpprobe", "ssl", "tech", "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis", "wayback"],
+            "insane": ["dns", "subdomain", "portscan", "httpprobe", "ssl", "tech", "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis", "wayback"],
         }
+
+    def _canonicalize(self, modules: list[str]) -> list[str]:
+        return list(dict.fromkeys(self.aliases.get(name, name) for name in modules))
 
     def get_allowed_modules(self) -> list[str]:
         """Return allowed modules in a stable, user-visible execution order."""
         if self.config.modules and "all" not in self.config.modules and "quick" not in self.config.modules:
-            return list(dict.fromkeys(self.config.modules))
+            return self._canonicalize(self.config.modules)
+
+        if "all" in self.config.modules:
+            return list(self.depth_profiles["insane"])
 
         depth = "quick" if "quick" in self.config.modules else self.config.depth
         return list(self.depth_profiles.get(depth, self.depth_profiles["normal"]))
@@ -60,7 +71,8 @@ class PipelineManager:
         for up, down_list in self.graph.items():
             if up in allowed:
                 for down in down_list:
-                    has_upstream.add(down)
+                    if down in allowed:
+                        has_upstream.add(down)
                     
         # Entry points are allowed modules that have no upstream
         entry_points = [m for m in allowed if m not in has_upstream]

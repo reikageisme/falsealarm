@@ -98,6 +98,7 @@ def run_scan(
     random_agent: bool = typer.Option(False, "--random-agent", help="Use random User-Agent"),
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
+    report: Optional[str] = typer.Option(None, "--report", help="Write a pentest-ready Markdown attack-surface report"),
     format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/csv/txt/sarif [default: txt]"),
     silent: bool = typer.Option(False, "--silent", help="Only show results"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show debug info"),
@@ -121,7 +122,7 @@ def run_scan(
                 url=url, target_list=target_list, config_file=config_file, profile=profile,
                 module=module, all_modules=all_modules, quick=quick, threads=threads, rate=rate,
                 timeout=timeout, delay=delay, proxy=proxy, proxy_file=proxy_file, random_agent=random_agent,
-                wordlist=wordlist, output=output, format_type=format_type, silent=silent, verbose=verbose,
+                wordlist=wordlist, output=output, report=report, format_type=format_type, silent=silent, verbose=verbose,
                 resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate, 
                 notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token, 
                 telegram_chat_id=telegram_chat_id,
@@ -135,7 +136,7 @@ async def _run_scan(
     url: Optional[str], target_list: Optional[str], config_file: Optional[str], profile: str,
     module: Optional[str], all_modules: bool, quick: bool, threads: int, rate: int,
     timeout: int, delay: float, proxy: Optional[str], proxy_file: Optional[str], random_agent: bool,
-    wordlist: Optional[str], output: Optional[str], format_type: str, silent: bool, verbose: bool,
+    wordlist: Optional[str], output: Optional[str], report: Optional[str], format_type: str, silent: bool, verbose: bool,
     resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal", 
     adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None, 
     telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
@@ -174,6 +175,7 @@ async def _run_scan(
             if target_list: config.targets_file = target_list
             if modules_list: config.modules = modules_list
             if output: config.output = output
+            if report: config.report = report
             if silent: config.silent = silent
             if verbose: config.verbose = verbose
             config.depth = depth
@@ -194,6 +196,7 @@ async def _run_scan(
             proxy_file=proxy_file,
             random_agent=random_agent,
             output=output,
+            report=report,
             format=format_type,
             silent=silent,
             verbose=verbose,
@@ -262,6 +265,9 @@ async def _run_scan(
             scan_results = await scheduler.resume(config.resume)
             if output:
                 await OutputManager.export(scan_results, output, format_type)
+            if report:
+                from falsealarm.core.report import PentestReport
+                await PentestReport.export(scan["target"], scan_results, report)
         finally:
             await engine.close()
             await db.close()
@@ -343,6 +349,17 @@ async def _run_scan(
             await OutputManager.export(scan_results, final_output, format_type)
             if not silent:
                 logger.success(f"Results for {current_target} saved to {final_output}")
+
+        if report:
+            from falsealarm.core.report import PentestReport
+            final_report = report
+            if len(targets) > 1:
+                base, ext = os.path.splitext(report)
+                safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
+                final_report = f"{base}_{safe_target}{ext or '.md'}"
+            await PentestReport.export(current_target, scan_results, final_report)
+            if not silent:
+                logger.success(f"Pentest report for {current_target} saved to {final_report}")
                 
         await engine.close()
         

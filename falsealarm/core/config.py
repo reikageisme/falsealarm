@@ -16,6 +16,7 @@ class ScanConfig:
     random_agent: bool = False
     http2: bool = False
     output: str | None = None
+    report: str | None = None
     format: str = "table"
     silent: bool = False
     verbose: bool = False

@@ -1,7 +1,11 @@
 import pytest
+import inspect
+import pkgutil
+import importlib
 
 from falsealarm.core.config import ScanConfig
 from falsealarm.core.pipeline import PipelineManager
+from falsealarm.modules.base import BaseModule
 
 
 @pytest.mark.parametrize(
@@ -40,5 +44,59 @@ def test_quick_module_alias_uses_quick_depth_profile():
 
     assert PipelineManager(config).get_allowed_modules() == [
         "httpprobe",
-        "headers_ssl",
+        "ssl",
     ]
+
+
+def test_legacy_module_names_are_canonicalized():
+    config = ScanConfig(
+        target="example.com",
+        modules=["headers_ssl", "techdetect"],
+    )
+
+    assert PipelineManager(config).get_allowed_modules() == ["ssl", "tech"]
+
+
+def test_all_selects_every_discovered_module_name():
+    config = ScanConfig(target="example.com", modules=["all"], depth="normal")
+
+    assert PipelineManager(config).get_allowed_modules() == [
+        "dns",
+        "subdomain",
+        "portscan",
+        "httpprobe",
+        "ssl",
+        "tech",
+        "vulnscan",
+        "cors",
+        "dirfuzz",
+        "websocket",
+        "js_analysis",
+        "wayback",
+    ]
+
+
+def test_all_pipeline_entry_points_are_independent_collectors():
+    config = ScanConfig(target="example.com", modules=["all"])
+
+    assert PipelineManager(config).get_entry_points() == [
+        "dns",
+        "subdomain",
+        "portscan",
+        "wayback",
+    ]
+
+
+def test_all_profile_matches_auto_discovered_modules():
+    import falsealarm.modules as modules_pkg
+
+    discovered = set()
+    prefix = modules_pkg.__name__ + "."
+    for _, module_name, _ in pkgutil.iter_modules(modules_pkg.__path__, prefix):
+        module = importlib.import_module(module_name)
+        for _, cls in inspect.getmembers(module, inspect.isclass):
+            if issubclass(cls, BaseModule) and cls is not BaseModule:
+                discovered.add(cls.name)
+
+    config = ScanConfig(target="example.com", modules=["all"])
+    assert set(PipelineManager(config).get_allowed_modules()) == discovered

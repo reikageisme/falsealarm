@@ -6,6 +6,7 @@ from .db import Database
 from .logger import FalseAlarmLogger
 from .scheduler import ScanScheduler
 from .output import OutputManager
+from .report import PentestReport
 
 __all__ = [
     "ScanConfig",
@@ -14,4 +15,5 @@ __all__ = [
     "FalseAlarmLogger",
     "ScanScheduler",
     "OutputManager",
+    "PentestReport",
 ]

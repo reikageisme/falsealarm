@@ -53,7 +53,7 @@ def print_banner(console=None, show_help=False) -> None:
             falsealarm scan -u example.com -A
             
             [bold yellow]# 2. Targeted modular scan (DNS and Tech only)[/bold yellow]
-            falsealarm scan -u example.com -m dns,techdetect
+            falsealarm scan -u example.com -m dns,tech
             
             [bold yellow]# 3. Multi-target file or CIDR range scan[/bold yellow]
             falsealarm scan -iL targets.txt -q

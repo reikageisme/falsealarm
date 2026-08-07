@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any
@@ -74,11 +74,11 @@ import secrets
 
 def get_timestamp() -> str:
     """Get current timestamp in ISO format."""
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 def generate_scan_id() -> str:
     """Generate a unique scan ID."""
-    return f"fa_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(3)}"
+    return f"fa_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}_{secrets.token_hex(3)}"
 
 def get_data_path(filename: str) -> Path:
     """Get the path to a data file."""
