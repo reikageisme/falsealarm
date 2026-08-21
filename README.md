@@ -128,7 +128,10 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 | `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | Production |
 | `portscan` | Async TCP/UDP Port Scanner (Nmap alternative for L7 chains) | Aggressive | Production |
 | `websocket` | WebSocket (WS/WSS) Discovery & Message Fuzzing | Active | Production |
-| `vulnscan` | Next-Gen YAML-based Vulnerability Detection Engine (CVEs, Cloud Keys, Misconfigs) | Aggressive | Production |
+| `vulnscan` | Next-Gen YAML-based Vulnerability Detection Engine (regex/header/negative matchers + extractors) | Aggressive | Production |
+| `favicon` | Favicon hashing (Shodan `mmh3` + `sha256`) for asset pivoting | Active | Production |
+| `graphql` | GraphQL endpoint discovery & introspection-exposure check | Active | Production |
+| `openredirect` | Open-redirect probing across common redirect parameters | Active | Production |
 
 ---
 
@@ -154,7 +157,14 @@ python -m falsealarm build-engine
 ### Option 2: Isolated Global Install (via pipx)
 ```bash
 pipx install git+https://github.com/reikageisme/falsealarm.git
+
+# Optional: Shodan-compatible favicon hashing
+pipx install "falsealarm[favicon] @ git+https://github.com/reikageisme/falsealarm.git"
 ```
+
+> Prebuilt Go engine binaries for Linux/macOS/Windows are attached to each
+> GitHub Release. If the Go toolchain isn't installed, `falsealarm build-engine`
+> will download the matching prebuilt binary automatically.
 
 ### Option 3: Docker Deployment
 Build and run FalseAlarm in an isolated container. The Dockerfile compiles the Go engine during the build process automatically.
@@ -223,6 +233,22 @@ falsealarm scan -u example.com -A -r 15 -t 20 --proxy socks5://127.0.0.1:9050 --
 
 # High-intensity Go-accelerated Directory Fuzzing
 falsealarm scan -u http://example.com/FUZZ -m dirfuzz -t 100 -w common.txt
+
+# Recursive content discovery (dig into discovered directories)
+falsealarm scan -u http://example.com -m dirfuzz --recursion-depth 2
+```
+
+### Pipe Mode & Tool Chaining (NDJSON)
+FalseAlarm reads targets from stdin and streams NDJSON results to stdout with
+`--pipe` (logs go to stderr), so it composes with the rest of your toolkit:
+
+```bash
+# Chain FalseAlarm stages together
+echo example.com | falsealarm --pipe -m httpprobe | jq -r .url \
+  | falsealarm --pipe -m tech,vulnscan
+
+# Feed it from other recon tools
+subfinder -d example.com | falsealarm --pipe -m httpprobe -o live.jsonl -f jsonl
 ```
 
 ### Data Management & Profiles

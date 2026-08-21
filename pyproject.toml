@@ -33,6 +33,17 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+# Shodan-compatible favicon hashing (falsealarm[favicon]).
+favicon = ["mmh3>=4.0"]
+# Everything optional at once.
+all = ["mmh3>=4.0"]
+
+[project.urls]
+Homepage = "https://github.com/reikageisme/falsealarm"
+Repository = "https://github.com/reikageisme/falsealarm"
+Issues = "https://github.com/reikageisme/falsealarm/issues"
+
 [project.scripts]
 falsealarm = "falsealarm.cli:main"
 

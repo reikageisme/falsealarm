@@ -8,6 +8,7 @@ Also provides Rich table formatting for terminal display.
 import csv
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -18,33 +19,61 @@ class OutputManager:
     """Manages exporting results to various formats."""
 
     @staticmethod
+    def flatten(data: Any) -> list[dict[str, Any]]:
+        """Flatten the {module: {"data": [...]}} scan result into a flat
+        list of records, each tagged with its ``_module``."""
+        if not isinstance(data, dict):
+            return data
+        flat: list[dict[str, Any]] = []
+        for module_name, module_data in data.items():
+            if isinstance(module_data, dict) and "data" in module_data:
+                for item in module_data["data"]:
+                    flat.append({**item, "_module": module_name})
+            elif isinstance(module_data, list):
+                for item in module_data:
+                    flat.append({**item, "_module": module_name})
+            else:
+                flat.append({"_module": module_name, "result": str(module_data)})
+        return flat
+
+    @staticmethod
+    def ndjson_lines(data: Any) -> list[str]:
+        """Render scan results as NDJSON lines (one JSON object per record)."""
+        return [
+            json.dumps(item, ensure_ascii=False, default=str)
+            for item in OutputManager.flatten(data)
+        ]
+
+    @staticmethod
     async def export(data: Any, filepath: str, fmt: str) -> None:
         """Export data to the specified format.
 
         Args:
             data: Data to export (list of dicts or dict).
-            filepath: Output file path.
-            fmt: Format string: 'json', 'csv', 'table', 'txt', or 'sarif'.
+            filepath: Output file path. Use ``"-"`` to write to stdout.
+            fmt: 'json', 'jsonl', 'csv', 'table', 'txt', or 'sarif'.
         """
-        # Normalize data to list
-        if isinstance(data, dict):
-            flat = []
-            for module_name, module_data in data.items():
-                if isinstance(module_data, dict) and "data" in module_data:
-                    for item in module_data["data"]:
-                        flat.append({**item, "_module": module_name})
-                elif isinstance(module_data, list):
-                    for item in module_data:
-                        flat.append({**item, "_module": module_name})
-                else:
-                    flat.append({"_module": module_name, "result": str(module_data)})
-            data = flat
+        # Normalize data to a flat list of records.
+        data = OutputManager.flatten(data)
 
         if not data and fmt != "sarif":
             return
 
+        # Stream to stdout when the caller asks for "-" (pipe friendly).
+        if filepath == "-":
+            if fmt == "jsonl":
+                for line in OutputManager.ndjson_lines(data):
+                    sys.stdout.write(line + "\n")
+            else:
+                json.dump(data, sys.stdout, ensure_ascii=False, default=str)
+                sys.stdout.write("\n")
+            sys.stdout.flush()
+            return
+
         if fmt == "json":
             await OutputManager.export_json(data, filepath)
+        elif fmt == "jsonl":
+            await OutputManager.export_jsonl(data, filepath)
         elif fmt == "csv":
             await OutputManager.export_csv(data, filepath)
         elif fmt == "txt":
@@ -54,6 +83,15 @@ class OutputManager:
         else:
             # Default to JSON
             await OutputManager.export_json(data, filepath)
+
+    @staticmethod
+    async def export_jsonl(data: list[dict[str, Any]], filepath: str) -> None:
+        """Export data as NDJSON (one JSON object per line)."""
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            for line in OutputManager.ndjson_lines(data):
+                f.write(line + "\n")
 
     @staticmethod
     async def export_json(data: list[dict[str, Any]], filepath: str) -> None:

@@ -50,8 +50,62 @@ class DirFuzzModule(BaseModule):
         except Exception:
             return ""
 
+    @staticmethod
+    def _is_dir_candidate(item: dict) -> bool:
+        """Whether a hit looks like a directory worth recursing into."""
+        if item.get("type") != "directory":
+            return False
+        payload = str(item.get("payload", ""))
+        if not payload or "." in payload:  # skip files (foo.js) and empties
+            return False
+        return item.get("status") in (200, 301, 302, 307, 308, 403)
+
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
+        from collections import deque
+
+        base = target if target.startswith("http") else f"http://{target}"
+        has_fuzz = "FUZZ" in base
+        depth = max(0, int(getattr(self.config, "recursion_depth", 0) or 0))
+
+        all_results: list[dict[str, Any]] = []
+        agg = {"paths_tested": 0, "found": 0, "forbidden": 0,
+               "false_positives_dropped": 0, "directories_recursed": 0}
+
+        visited: set[str] = set()
+        queue: deque[tuple[str, int]] = deque([(base, 0)])
+        MAX_DIRS = 60  # safety cap so recursion can't explode
+
+        while queue:
+            current, d = queue.popleft()
+            norm = current.rstrip("/")
+            if norm in visited:
+                continue
+            visited.add(norm)
+
+            results, stats = await self._fuzz_once(current)
+            all_results.extend(results)
+            for key in ("paths_tested", "found", "forbidden", "false_positives_dropped"):
+                agg[key] += stats.get(key, 0)
+
+            # Recurse into discovered directories (directory mode only).
+            if not has_fuzz and depth > 0 and d < depth and len(visited) < MAX_DIRS:
+                parent = current if current.endswith("/") else current + "/"
+                for item in results:
+                    if self._is_dir_candidate(item):
+                        child = urljoin(parent, str(item["payload"]) + "/")
+                        if child.rstrip("/") not in visited:
+                            agg["directories_recursed"] += 1
+                            queue.append((child, d + 1))
+
+        return self._make_result(base, all_results, agg)
+
+    async def _fuzz_once(self, target: str):
+        """Run one fuzzing pass against a single base URL.
+
+        Returns ``(results, stats)`` so the recursive ``run`` can aggregate
+        across multiple directory levels.
+        """
         results: list[dict[str, Any]] = []
         stats = {"paths_tested": 0, "found": 0, "forbidden": 0, "false_positives_dropped": 0}
 
@@ -72,7 +126,7 @@ class DirFuzzModule(BaseModule):
                 paths_to_test = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         except Exception as e:
             self.logger.error(f"Failed to load wordlist from {wordlist_path}: {e}")
-            return self._make_result(target, results, stats)
+            return results, stats
 
         # Baseline checking to reduce False Positives
         # We send a request to a highly unlikely path/param to see the server's default behavior
@@ -181,7 +235,7 @@ class DirFuzzModule(BaseModule):
                 await process.wait()
                 if process.returncode == 0:
                     stats["paths_tested"] = len(paths_to_test)
-                    return self._make_result(target, results, stats)
+                    return results, stats
                 else:
                     stderr = await process.stderr.read()
                     self.logger.error(f"Go engine failed: {stderr.decode()}")
@@ -245,4 +299,4 @@ class DirFuzzModule(BaseModule):
             if r:
                 results.append(r)
 
-        return self._make_result(target, results, stats)
+        return results, stats

@@ -48,8 +48,27 @@ def test_multiple_matchers_and_condition_all_pass():
 
 
 def test_unknown_matcher_type_does_not_silently_pass():
-    matchers = [{"type": "regex", "regex": [".*"]}]
+    matchers = [{"type": "dns", "name": ["example.com"]}]
     assert evaluate_matchers(matchers, status=200, body="anything", matchers_condition="or") is False
+
+
+def test_regex_matcher_matches_body():
+    matchers = [{"type": "regex", "regex": [r"root:.*:0:0:"]}]
+    assert evaluate_matchers(matchers, status=200, body="root:x:0:0:root") is True
+    assert evaluate_matchers(matchers, status=200, body="nothing here") is False
+
+
+def test_word_matcher_on_header_part():
+    matchers = [{"type": "word", "part": "header", "words": ["nginx"]}]
+    headers = {"Server": "nginx/1.25"}
+    assert evaluate_matchers(matchers, status=200, body="", headers=headers) is True
+    assert evaluate_matchers(matchers, status=200, body="nginx in body only") is False
+
+
+def test_negative_matcher_inverts():
+    matchers = [{"type": "status", "status": [404], "negative": True}]
+    assert evaluate_matchers(matchers, status=200, body="") is True
+    assert evaluate_matchers(matchers, status=404, body="") is False
 
 
 def test_no_matchers_never_matches():

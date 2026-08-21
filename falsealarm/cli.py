@@ -104,7 +104,7 @@ def run_scan(
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
     report: Optional[str] = typer.Option(None, "--report", help="Write a pentest-ready Markdown attack-surface report"),
-    format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/csv/txt/sarif [default: txt]"),
+    format_type: str = typer.Option("txt", "-f", "--format", help="Output format: table/json/jsonl/csv/txt/sarif [default: txt]"),
     silent: bool = typer.Option(False, "--silent", help="Only show results"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show debug info"),
     resume: Optional[str] = typer.Option(None, "--resume", help="Resume scan by ID"),
@@ -112,6 +112,8 @@ def run_scan(
     diff: bool = typer.Option(False, "--diff", help="Compare results against the last completed scan of the same target"),
     depth: str = typer.Option("normal", "--depth", help="Scan depth profile: quick/normal/deep/insane"),
     adaptive_rate: bool = typer.Option(False, "--adaptive-rate", help="Auto-adjust rate on 429/503/timeout"),
+    pipe: bool = typer.Option(False, "--pipe", help="Pipe mode: read targets from stdin if none given, stream NDJSON results to stdout, logs to stderr"),
+    recursion_depth: int = typer.Option(0, "--recursion-depth", help="Recurse into discovered directories during dirfuzz (0 = off)"),
     notify_type: Optional[str] = typer.Option(None, "--notify-type", help="Notification platform: discord/slack/telegram"),
     notify_webhook: Optional[str] = typer.Option(None, "--notify-webhook", help="Discord/Slack incoming webhook URL"),
     telegram_token: Optional[str] = typer.Option(None, "--telegram-token", help="Telegram bot token (with --notify-type telegram)"),
@@ -131,7 +133,7 @@ def run_scan(
                 wordlist=wordlist, output=output, report=report, format_type=format_type, silent=silent, verbose=verbose,
                 resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate,
                 notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token,
-                telegram_chat_id=telegram_chat_id,
+                telegram_chat_id=telegram_chat_id, pipe=pipe, recursion_depth=recursion_depth,
             )
         )
     except KeyboardInterrupt:
@@ -147,11 +149,16 @@ async def _run_scan(
     resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal",
     adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None,
     telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
+    pipe: bool = False, recursion_depth: int = 0,
 ):
     from falsealarm.core.utils import sanitize_target
-    logger = FalseAlarmLogger(silent=silent, verbose=verbose)
 
-    if not silent:
+    # Pipe mode keeps stdout machine-readable: logs/banner go to stderr and
+    # results are streamed as NDJSON to stdout for chaining with other tools.
+    pipe_mode = pipe or output == "-"
+    logger = FalseAlarmLogger(silent=silent, verbose=verbose, stderr=pipe_mode)
+
+    if not silent and not pipe_mode:
         logger.banner()
         typer.secho("⚠ Legal: Only use on systems you have permission to test.\n", fg=typer.colors.YELLOW)
 
@@ -188,6 +195,8 @@ async def _run_scan(
             if include_third_party_js: config.include_third_party_js = True
             config.depth = depth
             config.adaptive_rate = adaptive_rate
+            config.pipe = pipe
+            config.recursion_depth = recursion_depth
         except Exception as e:
             typer.secho(f"[!] Config Error: {e}", fg=typer.colors.RED)
             sys.exit(1)
@@ -215,6 +224,8 @@ async def _run_scan(
             diff=diff,
             depth=depth,
             adaptive_rate=adaptive_rate,
+            pipe=pipe,
+            recursion_depth=recursion_depth,
             notify_type=notify_type,
             notify_webhook=notify_webhook,
             telegram_token=telegram_token,
@@ -238,6 +249,16 @@ async def _run_scan(
         except Exception as e:
             typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
             sys.exit(1)
+
+    # Ingest targets from stdin when piped and none were supplied explicitly.
+    if not config.target and not config.targets:
+        if pipe or not sys.stdin.isatty():
+            stdin_targets = [
+                sanitize_target(line.strip())
+                for line in sys.stdin
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+            config.targets = [t for t in stdin_targets if t]
 
     # Normalize target lists & expand CIDR notation if present
     import ipaddress
@@ -339,7 +360,7 @@ async def _run_scan(
             elif not silent and target_config.diff:
                 logger.info("No previous completed scan found for this target — nothing to diff against yet.")
 
-        if not silent:
+        if not silent and not pipe_mode:
             for mod_name, mod_data in scan_results.items():
                 data = mod_data.get("data", [])
                 if data:
@@ -347,7 +368,12 @@ async def _run_scan(
                     rows = [[str(item.get(col, "")) for col in columns] for item in data]
                     logger.table(f"{mod_name.upper()} Results ({current_target})", columns, rows)
 
-        if output:
+        # Pipe mode: stream NDJSON to stdout for chaining with other tools.
+        if pipe_mode:
+            stdout_fmt = "jsonl" if format_type in {"txt", "table", "csv"} else format_type
+            await OutputManager.export(scan_results, "-", stdout_fmt)
+
+        if output and output != "-":
             # If multiple targets, append target name to output file to avoid overwrite
             final_output = output
             if len(targets) > 1:
@@ -385,19 +411,32 @@ def build_engine():
     from rich.console import Console
     console = Console()
 
+    engine_dir = os.path.join(os.path.dirname(__file__), "..", "engine-go")
+    binary_name = "dirfuzz-engine.exe" if sys.platform == "win32" else "dirfuzz-engine"
+
     console.print("[*] Locating Go environment...")
+    have_go = True
     try:
         subprocess.run(["go", "version"], check=True, capture_output=True)
     except Exception:
-        console.print("[red][!] Go compiler not found. Please install Go (https://go.dev/doc/install) first.[/red]")
+        have_go = False
+
+    if not have_go:
+        # No Go toolchain: fetch the prebuilt binary from GitHub Releases so
+        # users don't need to install Go just to get the fast fuzzer.
+        console.print("[yellow][!] Go compiler not found — trying to download a prebuilt engine...[/yellow]")
+        if _download_prebuilt_engine(console, engine_dir, binary_name):
+            console.print("[green][+] Prebuilt engine installed.[/green]")
+            return
+        console.print(
+            "[red][!] Could not obtain a prebuilt engine. Install Go "
+            "(https://go.dev/doc/install) and re-run, or the Python fuzzer will be used.[/red]"
+        )
         sys.exit(1)
 
-    engine_dir = os.path.join(os.path.dirname(__file__), "..", "engine-go")
     if not os.path.exists(engine_dir):
         console.print("[red][!] engine-go directory not found.[/red]")
         sys.exit(1)
-
-    binary_name = "dirfuzz-engine.exe" if sys.platform == "win32" else "dirfuzz-engine"
 
     console.print("[*] Compiling DirFuzz Go Engine...")
     try:
@@ -411,6 +450,41 @@ def build_engine():
     except subprocess.CalledProcessError as e:
         console.print(f"[red][!] Compilation failed: {e}[/red]")
         sys.exit(1)
+
+def _download_prebuilt_engine(console, engine_dir: str, binary_name: str) -> bool:
+    """Download the matching prebuilt dirfuzz engine from GitHub Releases.
+
+    Returns True on success. Used as a fallback when the Go toolchain is
+    unavailable so `pip install`-only users still get the fast engine.
+    """
+    import platform
+    import stat
+    import urllib.request
+
+    system = platform.system().lower()  # linux / darwin / windows
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in ("arm64", "aarch64") else "amd64"
+    goos = {"linux": "linux", "darwin": "darwin", "windows": "windows"}.get(system)
+    if not goos:
+        console.print(f"[red][!] Unsupported platform: {system}[/red]")
+        return False
+
+    ext = ".exe" if goos == "windows" else ""
+    asset = f"dirfuzz-engine-{goos}-{arch}{ext}"
+    url = f"https://github.com/reikageisme/falsealarm/releases/latest/download/{asset}"
+    os.makedirs(engine_dir, exist_ok=True)
+    dest = os.path.join(engine_dir, binary_name)
+
+    console.print(f"[*] Downloading {asset} ...")
+    try:
+        urllib.request.urlretrieve(url, dest)  # noqa: S310 (fixed GitHub host)
+        if goos != "windows":
+            os.chmod(dest, os.stat(dest).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+        return True
+    except Exception as e:
+        console.print(f"[red][!] Download failed: {e}[/red]")
+        return False
+
 
 def main():
     # Print the extended cheat-sheet banner if help is requested or no args provided

@@ -74,6 +74,9 @@ def test_all_selects_every_discovered_module_name():
         "websocket",
         "js_analysis",
         "wayback",
+        "favicon",
+        "graphql",
+        "openredirect",
     ]
 
 

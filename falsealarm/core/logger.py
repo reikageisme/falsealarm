@@ -23,8 +23,12 @@ from rich.table import Table
 from falsealarm.core.config import ScanConfig
 
 
-def _make_console(silent: bool = False) -> Console:
-    """Create a Rich Console with proper encoding for Windows."""
+def _make_console(silent: bool = False, stderr: bool = False) -> Console:
+    """Create a Rich Console with proper encoding for Windows.
+
+    When ``stderr`` is True the console writes to stderr, keeping stdout
+    clean for machine-readable output (pipe mode / NDJSON chaining).
+    """
     # Force UTF-8 output on Windows to avoid cp1252 encoding errors
     if sys.platform == "win32":
         try:
@@ -32,7 +36,7 @@ def _make_console(silent: bool = False) -> Console:
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, OSError):
             pass
-    return Console(quiet=silent, force_terminal=True)
+    return Console(quiet=silent, force_terminal=True, stderr=stderr)
 
 
 class FalseAlarmLogger:
@@ -46,10 +50,10 @@ class FalseAlarmLogger:
         verbose: If True, show debug messages.
     """
 
-    def __init__(self, silent: bool = False, verbose: bool = False):
+    def __init__(self, silent: bool = False, verbose: bool = False, stderr: bool = False):
         self.silent = silent
         self.verbose = verbose
-        self.console = _make_console(silent)
+        self.console = _make_console(silent, stderr=stderr)
 
     def _timestamp(self) -> str:
         """Return formatted timestamp."""

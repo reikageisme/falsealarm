@@ -4,9 +4,12 @@ from .base import BaseModule
 from .cors import CORSModule
 from .dirfuzz import DirFuzzModule
 from .dns_enum import DNSEnumModule
+from .favicon import FaviconModule
+from .graphql import GraphQLModule
 from .headers_ssl import HeadersSSLModule
 from .httpprobe import HTTPProbeModule
 from .js_analysis import JSAnalysisModule
+from .openredirect import OpenRedirectModule
 from .portscan import PortScanModule
 from .subdomain import SubdomainModule
 from .techdetect import TechDetectModule
@@ -28,4 +31,7 @@ __all__ = [
     "PortScanModule",
     "WebSocketModule",
     "VulnScanModule",
+    "FaviconModule",
+    "GraphQLModule",
+    "OpenRedirectModule",
 ]

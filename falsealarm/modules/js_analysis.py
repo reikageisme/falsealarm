@@ -11,17 +11,32 @@ from falsealarm.modules.base import BaseModule, ModuleResult
 
 class JSAnalysisModule(BaseModule):
     name = "js_analysis"
-    description = "JavaScript AST Analysis & Secrets Extraction"
+    description = "JavaScript endpoint & secret extraction (same-origin by default)"
 
     # Regex patterns for common secrets/tokens
     SECRET_PATTERNS = {
-        "Google API Key": r'AIza[0-9A-Za-z-_]{35}',
+        "Google API Key": r'AIza[0-9A-Za-z\-_]{35}',
         "AWS Access Key": r'AKIA[0-9A-Z]{16}',
-        "Stripe Standard API": r'sk_live_[0-9a-zA-Z]{24}',
+        "AWS Secret Key": r'(?i)aws_secret_access_key["\'\s:=]+[0-9a-zA-Z/+]{40}',
+        "Stripe Live Secret Key": r'sk_live_[0-9a-zA-Z]{24}',
+        "Stripe Restricted Key": r'rk_live_[0-9a-zA-Z]{24}',
         "RSA Private Key": r'-----BEGIN RSA PRIVATE KEY-----',
-        "Generic Bearer Token": r'Bearer [a-zA-Z0-9\-\._\~\+\/]+',
-        "Github Access Token": r'ghp_[0-9a-zA-Z]{36}',
-        "JWT Token": r'eyJ[a-zA-Z0-9]{10,}\.eyJ[a-zA-Z0-9]{10,}\.[a-zA-Z0-9_\-]+'
+        "EC Private Key": r'-----BEGIN EC PRIVATE KEY-----',
+        "OpenSSH Private Key": r'-----BEGIN OPENSSH PRIVATE KEY-----',
+        "PGP Private Key": r'-----BEGIN PGP PRIVATE KEY BLOCK-----',
+        "Generic Bearer Token": r'[Bb]earer\s+[a-zA-Z0-9\-\._~\+\/]{20,}',
+        "GitHub Token": r'gh[pousr]_[0-9a-zA-Z]{36}',
+        "GitLab PAT": r'glpat-[0-9a-zA-Z\-_]{20}',
+        "Slack Token": r'xox[baprs]-[0-9a-zA-Z-]{10,48}',
+        "Slack Webhook": r'https://hooks\.slack\.com/services/[A-Za-z0-9/]+',
+        "Google OAuth Token": r'ya29\.[0-9A-Za-z\-_]+',
+        "Twilio Account SID": r'AC[a-z0-9]{32}',
+        "SendGrid API Key": r'SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}',
+        "Mailgun API Key": r'key-[0-9a-zA-Z]{32}',
+        "Heroku API Key": r'(?i)heroku[a-z0-9_ .\-,]{0,25}[\'"][0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}[\'"]',
+        "npm Token": r'npm_[0-9a-zA-Z]{36}',
+        "JWT Token": r'eyJ[a-zA-Z0-9]{10,}\.eyJ[a-zA-Z0-9]{10,}\.[a-zA-Z0-9_\-]+',
+        "Generic API Key Assignment": r'(?i)(?:api[_-]?key|secret|token|passwd|password)["\'\s:=]{1,4}[0-9a-zA-Z\-_]{16,45}["\']',
     }
 
     # Regex for endpoints

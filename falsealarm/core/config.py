@@ -28,6 +28,8 @@ class ScanConfig:
     ai_triage: bool = False
     diff: bool = False
     adaptive_rate: bool = False
+    pipe: bool = False
+    recursion_depth: int = 0
     waf_detected: bool = False
     waf_name: str | None = None
     depth: str = "normal"
@@ -79,8 +81,10 @@ class ScanConfig:
             raise ValueError("Delay cannot be negative.")
         if self.depth not in {"quick", "normal", "deep", "insane"}:
             raise ValueError("Depth must be one of: quick, normal, deep, insane.")
-        if self.format not in {"table", "json", "csv", "txt", "sarif"}:
-            raise ValueError("Output format must be one of: table, json, csv, txt, sarif.")
+        if self.format not in {"table", "json", "jsonl", "csv", "txt", "sarif"}:
+            raise ValueError("Output format must be one of: table, json, jsonl, csv, txt, sarif.")
+        if self.recursion_depth < 0:
+            raise ValueError("Recursion depth cannot be negative.")
         if self.notify_type not in {None, "discord", "slack", "telegram"}:
             raise ValueError("Notification type must be discord, slack, or telegram.")
         if self.notify_type in {"discord", "slack"} and not self.notify_webhook:

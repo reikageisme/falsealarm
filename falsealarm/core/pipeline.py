@@ -30,16 +30,27 @@ class PipelineManager:
 
         self.graph = {
             "subdomain": ["httpprobe"],
-            "httpprobe": ["tech", "ssl", "cors", "dirfuzz", "websocket", "js_analysis"],
+            "httpprobe": [
+                "tech", "ssl", "cors", "dirfuzz", "websocket", "js_analysis",
+                "favicon", "graphql", "openredirect",
+            ],
             "tech": ["vulnscan"],
             "portscan": ["httpprobe"],
         }
 
         self.depth_profiles = {
             "quick": ["httpprobe", "ssl"],
-            "normal": ["httpprobe", "ssl", "tech", "vulnscan", "cors"],
-            "deep": ["httpprobe", "ssl", "tech", "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis", "wayback"],
-            "insane": ["dns", "subdomain", "portscan", "httpprobe", "ssl", "tech", "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis", "wayback"],
+            "normal": ["httpprobe", "ssl", "tech", "vulnscan", "cors", "favicon"],
+            "deep": [
+                "httpprobe", "ssl", "tech", "vulnscan", "cors", "dirfuzz",
+                "websocket", "js_analysis", "wayback", "favicon", "graphql",
+                "openredirect",
+            ],
+            "insane": [
+                "dns", "subdomain", "portscan", "httpprobe", "ssl", "tech",
+                "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis",
+                "wayback", "favicon", "graphql", "openredirect",
+            ],
         }
 
     def _canonicalize(self, modules: list[str]) -> list[str]:
