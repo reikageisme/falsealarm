@@ -1,7 +1,8 @@
-import pytest
+import importlib
 import inspect
 import pkgutil
-import importlib
+
+import pytest
 
 from falsealarm.core.config import ScanConfig
 from falsealarm.core.pipeline import PipelineManager

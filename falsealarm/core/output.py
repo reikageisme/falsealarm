@@ -5,11 +5,12 @@ Export scan results to multiple formats: JSON, CSV, TXT, and SARIF.
 Also provides Rich table formatting for terminal display.
 """
 
-import json
 import csv
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
+
 from rich.table import Table
 
 

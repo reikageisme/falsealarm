@@ -1,8 +1,9 @@
 import re
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urlparse, urlsplit, urlunsplit
 from typing import Any
+from urllib.parse import urlparse, urlsplit, urlunsplit
+
 
 def is_valid_domain(domain: str) -> bool:
     """Check if a string is a valid domain name."""
@@ -55,8 +56,8 @@ def canonical_url(url: str) -> str:
 
 def sanitize_target(target: str) -> str:
     """
-    Sanitize target string to prevent Terminal Escape Injection 
-    and HTTP injection attacks by removing all non-printable 
+    Sanitize target string to prevent Terminal Escape Injection
+    and HTTP injection attacks by removing all non-printable
     control characters and ANSI escape sequences.
     """
     if not target:
@@ -101,6 +102,7 @@ def parse_ports(port_str: str) -> list[int]:
     return sorted(list(ports))
 
 import secrets
+
 
 def get_timestamp() -> str:
     """Get current timestamp in ISO format."""

@@ -1,8 +1,10 @@
-import json
 import asyncio
+import json
 import urllib.parse
 from typing import Any
+
 from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class WaybackModule(BaseModule):
     name = "wayback"
@@ -16,15 +18,15 @@ class WaybackModule(BaseModule):
         # Clean target to get domain
         if target.startswith("http"):
             target = urllib.parse.urlparse(target).hostname or target
-            
+
         target = target.replace("www.", "")
-        
+
         self.logger.info(f"Fetching historical URLs from Wayback Machine for {target}...")
-        
+
         # Wayback Machine CDX API
         # collapse=urlkey to remove duplicates
         cdx_url = f"https://web.archive.org/cdx/search/cdx?url=*.{target}/*&output=json&collapse=urlkey&fl=original,mimetype,timestamp"
-        
+
         sensitive_exts = ('.php', '.asp', '.aspx', '.jsp', '.env', '.bak', '.old', '.zip', '.sql', '.json', '.xml', '.config')
 
         try:
@@ -52,7 +54,7 @@ class WaybackModule(BaseModule):
                         f"Wayback API rate limited the request; retrying in {wait_seconds:g}s..."
                     )
                     await asyncio.sleep(wait_seconds)
-            
+
             if not response.get("error") and response.get("status") == 200:
                 try:
                     data = json.loads(response.get("body", "[]"))
@@ -63,7 +65,7 @@ class WaybackModule(BaseModule):
                                 original_url = row[0]
                                 mimetype = row[1]
                                 timestamp = row[2]
-                                
+
                                 item = {
                                     "type": "wayback_url",
                                     "url": original_url,
@@ -71,21 +73,21 @@ class WaybackModule(BaseModule):
                                     "timestamp": timestamp,
                                     "is_sensitive": False
                                 }
-                                
+
                                 # Check for sensitive extensions or query parameters
                                 parsed_url = urllib.parse.urlparse(original_url)
                                 if parsed_url.path.endswith(sensitive_exts) or parsed_url.query:
                                     item["is_sensitive"] = True
                                     stats["sensitive_extensions"] += 1
-                                    
+
                                 results.append(item)
                                 stats["urls_found"] += 1
-                                
+
                 except json.JSONDecodeError:
                     self.logger.error("Failed to parse Wayback Machine response")
             else:
                 self.logger.warning(f"Wayback API returned status {response.get('status')} or error {response.get('error')}")
-                
+
         except Exception as e:
             self.logger.debug(f"Wayback enumeration failed: {e}")
 

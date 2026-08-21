@@ -18,7 +18,7 @@ from typing import Any
 # forgiving of minor field changes like elapsed time).
 KEY_FIELDS: dict[str, tuple[str, ...]] = {
     "subdomain": ("domain",),
-    "portscan": ("port",),
+    "portscan": ("target", "port"),
     "dirfuzz": ("url",),
     "vulnscan": ("vuln_id", "url"),
     "httpprobe": ("url",),

@@ -8,8 +8,8 @@ monitoring systems. Loads real browser User-Agent strings from a data file.
 
 import random
 from pathlib import Path
-from falsealarm.core.utils import get_data_path
 
+from falsealarm.core.utils import get_data_path
 
 # Fallback User-Agents if the data file is unavailable
 _FALLBACK_USER_AGENTS = [
@@ -39,10 +39,13 @@ _ACCEPT_LANGUAGE_VALUES = [
     "en-US,en;q=0.9,fr;q=0.8",
 ]
 
+# NOTE: only advertise encodings aiohttp can actually decompress. Advertising
+# "zstd" (which aiohttp does not decode) yields undecodable response bodies on
+# servers that honour it, breaking title/length extraction and matchers.
 _ACCEPT_ENCODING_VALUES = [
     "gzip, deflate, br",
     "gzip, deflate",
-    "gzip, deflate, br, zstd",
+    "gzip, deflate, br",
 ]
 
 

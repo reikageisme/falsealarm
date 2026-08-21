@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
 type Result struct {
@@ -30,30 +31,35 @@ func randomString(n int) string {
 	return hex.EncodeToString(bytes)[:n]
 }
 
+func emitError(msg string) {
+	errObj, _ := json.Marshal(map[string]string{"error": msg})
+	fmt.Println(string(errObj))
+}
+
 func main() {
 	targetURL := flag.String("u", "", "Target URL with FUZZ placeholder")
 	wordlistPath := flag.String("w", "", "Path to wordlist")
 	threads := flag.Int("t", 50, "Number of concurrent threads")
 	timeout := flag.Int("timeout", 10, "Timeout in seconds")
+	proxy := flag.String("proxy", "", "Proxy URL (http://host:port or socks5://host:port)")
+	rate := flag.Int("rate", 0, "Max requests per second (0 = unlimited)")
+	userAgent := flag.String("ua", "FalseAlarm-Go-Engine/1.0", "User-Agent header value")
 	flag.Parse()
 
 	if *targetURL == "" || *wordlistPath == "" {
-		errObj, _ := json.Marshal(map[string]string{"error": "Missing target or wordlist"})
-		fmt.Println(string(errObj))
+		emitError("Missing target or wordlist")
 		os.Exit(1)
 	}
 
 	if !strings.Contains(*targetURL, "FUZZ") {
-		errObj, _ := json.Marshal(map[string]string{"error": "Target URL must contain FUZZ placeholder"})
-		fmt.Println(string(errObj))
+		emitError("Target URL must contain FUZZ placeholder")
 		os.Exit(1)
 	}
 
 	// Open wordlist
 	file, err := os.Open(*wordlistPath)
 	if err != nil {
-		errObj, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("Failed to open wordlist: %v", err)})
-		fmt.Println(string(errObj))
+		emitError(fmt.Sprintf("Failed to open wordlist: %v", err))
 		os.Exit(1)
 	}
 	defer file.Close()
@@ -75,29 +81,56 @@ func main() {
 		WriteTimeout:             time.Duration(*timeout) * time.Second,
 	}
 
+	// Route traffic through the proxy so the Go engine honours the same
+	// OPSEC posture (Tor / proxy chains) as the Python orchestrator.
+	if *proxy != "" {
+		if strings.HasPrefix(*proxy, "socks") {
+			client.Dial = fasthttpproxy.FasthttpSocksDialer(*proxy)
+		} else {
+			addr := *proxy
+			addr = strings.TrimPrefix(addr, "http://")
+			addr = strings.TrimPrefix(addr, "https://")
+			client.Dial = fasthttpproxy.FasthttpHTTPDialer(addr)
+		}
+	}
+
+	// Global rate limiter shared by all workers (token every 1/rate seconds).
+	var limiter <-chan time.Time
+	if *rate > 0 {
+		ticker := time.NewTicker(time.Second / time.Duration(*rate))
+		defer ticker.Stop()
+		limiter = ticker.C
+	}
+
+	doRequest := func(u string) (int, int, error) {
+		req := fasthttp.AcquireRequest()
+		res := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseRequest(req)
+		defer fasthttp.ReleaseResponse(res)
+		req.SetRequestURI(u)
+		req.Header.SetMethod("GET")
+		req.Header.Set("User-Agent", *userAgent)
+		if err := client.Do(req, res); err != nil {
+			return 0, 0, err
+		}
+		return res.StatusCode(), len(res.Body()), nil
+	}
+
 	// 1. Baseline Calibration for Catch-All 200/302 Detection
 	randPayload := "falsealarm_rand_" + randomString(10)
 	baselineURL := strings.ReplaceAll(*targetURL, "FUZZ", randPayload)
-
-	reqBase := fasthttp.AcquireRequest()
-	resBase := fasthttp.AcquireResponse()
-	reqBase.SetRequestURI(baselineURL)
-	reqBase.Header.SetMethod("GET")
-	reqBase.Header.Set("User-Agent", "FalseAlarm-Go-Engine/1.0")
 
 	baselineStatus := 0
 	baselineLen := 0
 	hasBaseline := false
 
-	if err := client.Do(reqBase, resBase); err == nil {
-		baselineStatus = resBase.StatusCode()
-		baselineLen = len(resBase.Body())
+	if status, bodyLen, err := doRequest(baselineURL); err == nil {
+		baselineStatus = status
+		baselineLen = bodyLen
 		if baselineStatus != 0 && baselineStatus != 404 {
 			hasBaseline = true
 		}
 	}
-	fasthttp.ReleaseRequest(reqBase)
-	fasthttp.ReleaseResponse(resBase)
 
 	// Setup workers and channels
 	jobs := make(chan string, *threads*2)
@@ -110,6 +143,10 @@ func main() {
 		go func() {
 			defer wg.Done()
 			for payload := range jobs {
+				// Honour global rate limit if configured.
+				if limiter != nil {
+					<-limiter
+				}
 				// Handle 429 backoff sleep if triggered by another worker
 				if atomic.LoadInt32(&activeBackoff) > 0 {
 					time.Sleep(1 * time.Second)
@@ -117,17 +154,8 @@ func main() {
 
 				testURL := strings.ReplaceAll(*targetURL, "FUZZ", url.PathEscape(payload))
 
-				req := fasthttp.AcquireRequest()
-				res := fasthttp.AcquireResponse()
-				req.SetRequestURI(testURL)
-				req.Header.SetMethod("GET")
-				req.Header.Set("User-Agent", "FalseAlarm-Go-Engine/1.0")
-
-				err := client.Do(req, res)
+				status, bodyLen, err := doRequest(testURL)
 				if err == nil {
-					status := res.StatusCode()
-					bodyLen := len(res.Body())
-
 					// Handle 429 Rate Limiting
 					if status == 429 {
 						atomic.StoreInt32(&activeBackoff, 1)
@@ -156,9 +184,6 @@ func main() {
 						}
 					}
 				}
-
-				fasthttp.ReleaseRequest(req)
-				fasthttp.ReleaseResponse(res)
 			}
 		}()
 	}

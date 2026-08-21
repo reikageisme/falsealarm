@@ -15,33 +15,34 @@ def print_banner(console=None, show_help=False) -> None:
     """
     import platform
     import textwrap
-    from rich.console import Console, Group
-    from rich.panel import Panel
-    from rich.text import Text
+
     from rich.align import Align
+    from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
-    
+    from rich.text import Text
+
     if console is None:
         console = Console()
-        
+
     banner_ascii = textwrap.dedent(r"""
-        ___________        .__             _____  .__                        
-        \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____  
-         |    __) \__  \   |  |  /  ___/ \   __\  |  | \__  \\_  __ \/     \ 
+        ___________        .__             _____  .__
+        \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____
+         |    __) \__  \   |  |  /  ___/ \   __\  |  | \__  \\_  __ \/     \
          |     \   / __ \_ |  |__\___ \   |  |    |  |__/ __ \|  | \/  Y Y  \
          \___  /  (____  / |____/____  >  |__|    |____(____  /__|  |__|_|  /
-             \/        \/            \/                     \/            \/ 
+             \/        \/            \/                     \/            \/
     """).strip('\n')
-    
+
     # overflow="ignore" and no_wrap=True ensures ASCII art isn't truncated with '...' or broken
     styled_banner = Text(banner_ascii, style="bold bright_red", overflow="ignore", no_wrap=True)
-    
+
     metadata = f"""
 [bold cyan]v{__version__}[/bold cyan] | Codename: [bold yellow]{__codename__}[/bold yellow]
 [dim]Asynchronous I/O Engine Active | Python {platform.python_version()}[/dim]
 [dim]Developed by {__author__}[/dim]
     """
-    
+
     left_content = Text()
     left_content.append(styled_banner)
     left_content.append("\n\n")
@@ -51,40 +52,40 @@ def print_banner(console=None, show_help=False) -> None:
         cheat_sheet = textwrap.dedent("""
             [bold yellow]# 1. Comprehensive mapping (All modules)[/bold yellow]
             falsealarm scan -u example.com -A
-            
+
             [bold yellow]# 2. Targeted modular scan (DNS and Tech only)[/bold yellow]
             falsealarm scan -u example.com -m dns,tech
-            
+
             [bold yellow]# 3. Multi-target file or CIDR range scan[/bold yellow]
             falsealarm scan -iL targets.txt -q
             falsealarm scan -u 192.168.1.0/24 -m portscan,httpprobe
-            
+
             [bold yellow]# 4. Stealth & High-Speed Fuzzing[/bold yellow]
             falsealarm scan -u example.com -A -r 15 --proxy socks5://127.0.0.1:9050
-            
+
             [bold yellow]# 5. Load scan parameters from a YAML profile[/bold yellow]
             falsealarm scan -c profile.yaml -p stealth
-            
+
             [bold yellow]# 6. AI Triage Integration[/bold yellow]
             falsealarm scan -u example.com -A --ai-triage
         """).strip('\n')
-        
+
         right_content = Text.from_markup(cheat_sheet)
-        
+
         grid = Table.grid(expand=True, padding=(0, 4))
         # Cấp độ rộng tối thiểu (min_width) để bảo vệ form của Logo không bị bóp nghẹt
         grid.add_column(justify="center", no_wrap=True, min_width=65)
         # Cột hướng dẫn được phép chiếm toàn bộ không gian còn lại
         grid.add_column(justify="left", ratio=1)
         grid.add_row(left_content, right_content)
-        
+
         final_content = grid
         # Đặt True để Panel giãn hết chiều ngang, cấp đủ không gian cho chữ
         expand_panel = True
     else:
         final_content = Align.center(left_content)
         expand_panel = False
-    
+
     panel = Panel(
         final_content,
         border_style="red",
@@ -92,30 +93,29 @@ def print_banner(console=None, show_help=False) -> None:
         subtitle="[bold white] Deep InfoSec Lab [/bold white]",
         expand=expand_panel
     )
-    
+
     console.print(panel)
 
 from falsealarm.core import (
-    ScanConfig,
     AsyncEngine,
     Database,
     FalseAlarmLogger,
-    ScanScheduler,
     OutputManager,
+    ScanConfig,
+    ScanScheduler,
 )
-
 from falsealarm.modules import (
     BaseModule,
-    DNSEnumModule,
-    SubdomainModule,
-    HTTPProbeModule,
-    TechDetectModule,
-    HeadersSSLModule,
-    DirFuzzModule,
-    JSAnalysisModule,
-    WaybackModule,
     CORSModule,
+    DirFuzzModule,
+    DNSEnumModule,
+    HeadersSSLModule,
+    HTTPProbeModule,
+    JSAnalysisModule,
     PortScanModule,
+    SubdomainModule,
+    TechDetectModule,
+    WaybackModule,
     WebSocketModule,
 )
 

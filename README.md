@@ -102,7 +102,7 @@ EOF
 
 ### Stealth & Evasion
 * **Proxy Orchestration:** Native support for chained HTTP and SOCKS5 proxies (e.g., Tor network) with automatic node health checks.
-* **Dynamic Fingerprinting:** Automated rotation of `User-Agent`, TLS handshakes, and HTTP headers to spoof legitimate traffic profiles.
+* **Dynamic Fingerprinting:** Automated rotation of `User-Agent` and HTTP headers (Accept, Accept-Language, Accept-Encoding) to blend into legitimate traffic profiles. The Go fuzzing engine now honours the same proxy, rate limit, and User-Agent as the Python core.
 * **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
 
 ### Intelligence & State Management
@@ -120,11 +120,11 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 | Module Core | Tactical Capability | OPSEC Level | Status |
 |-------------|---------------------|-------------|:------:|
 | `dns` | Deep Record Enumeration (A, AAAA, MX, NS, TXT, SOA, AXFR, SPF, DMARC) | Passive/Active | Production |
-| `subdomain` | Multi-source Subdomain Enumeration (crt.sh, TLS certs, DNS brute) | Active | Production |
+| `subdomain` | Subdomain Enumeration via crt.sh (OSINT) + DNS brute-force with wildcard filtering | Active | Production |
 | `httpprobe` | Liveness Probing + Similarity Hashing for false positive reduction | Active | Production |
 | `tech` | Fingerprinting (CMS, Frameworks, WAF, CDN) via Headers & DOM | Active | Production |
 | `dirfuzz` | Polyglot (Go + Python) High-Speed Path/Directory Fuzzing (NDJSON Streaming) | Aggressive | Production |
-| `js_analysis` | JavaScript AST Parsing for hidden API endpoints & hardcoded secrets | Active | Production |
+| `js_analysis` | JavaScript scanning for hidden API endpoints & hardcoded secrets (same-origin by default) | Active | Production |
 | `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | Production |
 | `portscan` | Async TCP/UDP Port Scanner (Nmap alternative for L7 chains) | Aggressive | Production |
 | `websocket` | WebSocket (WS/WSS) Discovery & Message Fuzzing | Active | Production |
@@ -146,6 +146,9 @@ pip install -e .
 
 # Compile high-speed Go Fuzzing engine
 python -m falsealarm build-engine
+# NOTE: rebuild the Go engine whenever you pull changes to engine-go/ so it
+# picks up new flags (proxy/rate/User-Agent). A stale binary simply causes a
+# graceful fallback to the Python fuzzing engine.
 ```
 
 ### Option 2: Isolated Global Install (via pipx)

@@ -1,7 +1,9 @@
 import asyncio
 from typing import Any
 from urllib.parse import urlparse
+
 from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class PortScanModule(BaseModule):
     name = "portscan"
@@ -9,8 +11,8 @@ class PortScanModule(BaseModule):
 
     # Common ports for fast scanning
     TOP_PORTS = [
-        21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 
-        993, 995, 1723, 3306, 3389, 5900, 8080, 8443, 27017, 6379, 
+        21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445,
+        993, 995, 1723, 3306, 3389, 5900, 8080, 8443, 27017, 6379,
         11211, 9200, 5432, 1433, 1521, 8000, 8008, 8888
     ]
 
@@ -64,7 +66,7 @@ class PortScanModule(BaseModule):
                     reader, writer = await asyncio.wait_for(coro, timeout=conn_timeout)
                     writer.close()
                     await writer.wait_closed()
-                    
+
                     stats["open_ports"] += 1
                     return {
                         "type": "port",

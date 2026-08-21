@@ -27,7 +27,6 @@ dependencies = [
     "dnspython>=2.6",
     "websockets>=12.0",
     "beautifulsoup4>=4.12",
-    "pyjsparser>=2.7",
     "aiosqlite>=0.20",
     "pyyaml>=6.0",
     "certifi",
@@ -42,3 +41,21 @@ include = ["falsealarm*"]
 
 [tool.setuptools.package-data]
 falsealarm = ["data/**/*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+# Pyflakes (F) + a subset of pycodestyle (E/W) + isort (I).
+select = ["E", "F", "W", "I"]
+# E402/E701/E501 are stylistic and pervasive in this codebase's CLI and
+# one-line guard clauses; keep them off so lint stays signal, not noise.
+ignore = ["E402", "E701", "E501"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
+# Gradual typing: don't fail the build on untyped defs yet.
+check_untyped_defs = false

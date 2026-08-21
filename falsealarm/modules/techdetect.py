@@ -1,9 +1,10 @@
 import json
 import re
 from typing import Any
-from urllib.parse import urlparse
-from falsealarm.modules.base import BaseModule, ModuleResult
+
 from falsealarm.core.utils import get_data_path
+from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class TechDetectModule(BaseModule):
     name = "tech"
@@ -38,7 +39,7 @@ class TechDetectModule(BaseModule):
 
             headers = {k.lower(): v for k, v in response.get("headers", {}).items()}
             body = response.get("body", "")
-            
+
             # Simple cookie extraction from headers
             cookies = headers.get("set-cookie", "")
 
@@ -46,7 +47,7 @@ class TechDetectModule(BaseModule):
 
             for tech_name, tech_data in self.signatures.items():
                 is_detected = False
-                
+
                 # Check Headers
                 if "headers" in tech_data:
                     for h_name, h_val in tech_data["headers"].items():
@@ -54,7 +55,7 @@ class TechDetectModule(BaseModule):
                             if h_val.lower() in headers[h_name.lower()].lower():
                                 is_detected = True
                                 break
-                
+
                 # Check Cookies
                 if not is_detected and "cookies" in tech_data:
                     for cookie in tech_data["cookies"]:
@@ -68,7 +69,7 @@ class TechDetectModule(BaseModule):
                         if html_sig.lower() in body.lower():
                             is_detected = True
                             break
-                            
+
                 # Check Meta tags
                 if not is_detected and "meta" in tech_data:
                     for m_name, m_val in tech_data["meta"].items():

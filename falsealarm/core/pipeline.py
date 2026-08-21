@@ -7,6 +7,7 @@ modules (like probing and vulnscanning).
 """
 from falsealarm.core.config import ScanConfig
 
+
 class PipelineManager:
     """
     Manages the dependency graph of scan modules.
@@ -18,7 +19,7 @@ class PipelineManager:
             "headers_ssl": "ssl",
             "techdetect": "tech",
         }
-        
+
         # The DAG mapping: upstream -> list of downstreams
         # Based on the blueprint:
         # subdomain -> httpprobe
@@ -26,7 +27,7 @@ class PipelineManager:
         # httpprobe -> tech, dirfuzz, ssl, cors, websocket, js_analysis
         # tech -> vulnscan
         # portscan runs parallel/independent initially, but open HTTP ports feed back into httpprobe.
-        
+
         self.graph = {
             "subdomain": ["httpprobe"],
             "httpprobe": ["tech", "ssl", "cors", "dirfuzz", "websocket", "js_analysis"],
@@ -60,11 +61,11 @@ class PipelineManager:
         allowed = self.get_allowed_modules()
         all_downstream = self.graph.get(module_name, [])
         return [m for m in all_downstream if m in allowed]
-        
+
     def get_entry_points(self) -> list[str]:
         """Get modules that have no upstream dependencies in the current allowed set."""
         allowed = self.get_allowed_modules()
-        
+
         # Find all modules that are downstreams of something
         has_upstream: set[str] = set()
         for up, down_list in self.graph.items():
@@ -72,7 +73,7 @@ class PipelineManager:
                 for down in down_list:
                     if down in allowed:
                         has_upstream.add(down)
-                    
+
         # Entry points are allowed modules that have no upstream
         entry_points = [m for m in allowed if m not in has_upstream]
 
@@ -83,10 +84,10 @@ class PipelineManager:
             insert_at = allowed.index("httpprobe")
             prior_entries = sum(1 for name in allowed[:insert_at] if name in entry_points)
             entry_points.insert(prior_entries, "httpprobe")
-        
+
         # If the user only selected downstream modules explicitly (e.g. -m vulnscan)
         # then those become the entry points.
         if not entry_points and allowed:
             entry_points = list(allowed)
-            
+
         return entry_points

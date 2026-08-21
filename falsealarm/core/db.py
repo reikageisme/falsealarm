@@ -7,7 +7,9 @@ Uses aiosqlite for non-blocking database operations.
 """
 
 import json
+
 import aiosqlite
+
 from falsealarm.core.utils import generate_scan_id, get_timestamp
 
 

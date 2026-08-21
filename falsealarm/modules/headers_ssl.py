@@ -1,10 +1,11 @@
 import asyncio
-import json
 import socket
 import ssl
 from typing import Any
 from urllib.parse import urlparse
+
 from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class HeadersSSLModule(BaseModule):
     name = "ssl"
@@ -91,13 +92,13 @@ class HeadersSSLModule(BaseModule):
                         cert = ssock.getpeercert(binary_form=False)
                         if not cert:
                             return None
-                        
+
                         # Parse Issuer
                         issuer = {}
                         for rdn in cert.get("issuer", []):
                             for key, val in rdn:
                                 issuer[key] = val
-                        
+
                         # Parse Subject
                         subject = {}
                         for rdn in cert.get("subject", []):
@@ -122,5 +123,5 @@ class HeadersSSLModule(BaseModule):
             except Exception as e:
                 self.logger.debug(f"SSL fetch failed for {hostname}: {e}")
                 return {"valid": False, "error": f"{type(e).__name__}: {e}"}
-                
+
         return await asyncio.to_thread(fetch_cert)

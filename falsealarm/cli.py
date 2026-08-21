@@ -1,30 +1,32 @@
 import asyncio
-import sys
-import typer
 import os
-from pathlib import Path
+import sys
+from typing import Optional
+
+import typer
 from dotenv import load_dotenv
-from typing import Optional, List
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
+
 from falsealarm import __version__
 
 # Load environment variables from .env file
 load_dotenv()
 
 from falsealarm.core import (
-    ScanConfig,
     AsyncEngine,
     Database,
     FalseAlarmLogger,
-    ScanScheduler,
     OutputManager,
+    ScanConfig,
+    ScanScheduler,
 )
+
 # Modules are now auto-discovered by the ScanScheduler
 
 app = typer.Typer(
-    add_completion=False, 
-    no_args_is_help=True, 
+    add_completion=False,
+    no_args_is_help=True,
     rich_markup_mode="rich",
     help="FalseAlarm — Async Web Reconnaissance Engine"
 )
@@ -51,19 +53,21 @@ def list_scans(
             for s in scans:
                 print(f"[{s.get('id', 'N/A')}] Target: {s.get('target', 'N/A')} - Date: {s.get('created_at', 'N/A')}")
         await db.close()
-    
+
     asyncio.run(_list_scans())
 
 @app.command(name="modules")
 def list_modules():
     """List installed scan modules and their descriptions."""
-    from falsealarm.modules.base import BaseModule
-    import falsealarm.modules as modules_pkg
     import importlib
     import inspect
     import pkgutil
-    from rich.table import Table
+
     from rich.console import Console
+    from rich.table import Table
+
+    import falsealarm.modules as modules_pkg
+    from falsealarm.modules.base import BaseModule
 
     discovered: dict[str, str] = {}
     prefix = modules_pkg.__name__ + "."
@@ -125,8 +129,8 @@ def run_scan(
                 timeout=timeout, delay=delay, proxy=proxy, proxy_file=proxy_file, random_agent=random_agent,
                 include_third_party_js=include_third_party_js,
                 wordlist=wordlist, output=output, report=report, format_type=format_type, silent=silent, verbose=verbose,
-                resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate, 
-                notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token, 
+                resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate,
+                notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token,
                 telegram_chat_id=telegram_chat_id,
             )
         )
@@ -140,17 +144,17 @@ async def _run_scan(
     timeout: int, delay: float, proxy: Optional[str], proxy_file: Optional[str], random_agent: bool,
     include_third_party_js: bool,
     wordlist: Optional[str], output: Optional[str], report: Optional[str], format_type: str, silent: bool, verbose: bool,
-    resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal", 
-    adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None, 
+    resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal",
+    adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None,
     telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
 ):
     from falsealarm.core.utils import sanitize_target
     logger = FalseAlarmLogger(silent=silent, verbose=verbose)
-    
+
     if not silent:
         logger.banner()
         typer.secho("⚠ Legal: Only use on systems you have permission to test.\n", fg=typer.colors.YELLOW)
-        
+
     modules_list = []
     if module:
         modules_list = [sanitize_target(m.strip()) for m in module.split(',') if sanitize_target(m.strip())]
@@ -158,7 +162,7 @@ async def _run_scan(
         modules_list = ["all"]
     elif quick:
         modules_list = ["quick"]
-        
+
     targets = []
     if url:
         targets.append(sanitize_target(url))
@@ -216,13 +220,13 @@ async def _run_scan(
             telegram_token=telegram_token,
             telegram_chat_id=telegram_chat_id,
         )
-        
+
     try:
         config.validate()
     except ValueError as e:
         typer.secho(f"[!] Validation Error: {e}", fg=typer.colors.RED)
         sys.exit(1)
-        
+
     # Read target list if provided
     if config.targets_file:
         try:
@@ -234,7 +238,7 @@ async def _run_scan(
         except Exception as e:
             typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
             sys.exit(1)
-            
+
     # Normalize target lists & expand CIDR notation if present
     import ipaddress
     raw_targets = config.targets if config.targets else ([config.target] if config.target else [])
@@ -248,7 +252,7 @@ async def _run_scan(
                 targets.append(t)
         else:
             targets.append(t)
-    
+
     # We will currently run scans sequentially over targets
     db = Database()
     await db.init()
@@ -277,25 +281,25 @@ async def _run_scan(
             await engine.close()
             await db.close()
         return
-    
+
     for current_target in targets:
         if not current_target:
             continue
-            
+
         if len(targets) > 1 and not silent:
             logger.console.print(f"\n[bold yellow]>>> Scanning Target: {current_target} <<<[/bold yellow]")
-            
+
         # Create a deep copy of config for this specific target
         target_config = ScanConfig.from_dict(config.to_dict())
         target_config.target = current_target
-        
+
         if not silent and len(targets) == 1:
             logger.scan_config(target_config)
-            
+
         engine = AsyncEngine(target_config)
-        
+
         scheduler = ScanScheduler(config=target_config, engine=engine, db=db, logger=logger)
-        
+
         # Modules are automatically registered during ScanScheduler initialization
         scan_results = await scheduler.run()
 
@@ -319,7 +323,7 @@ async def _run_scan(
                     ))
 
                 if changes and target_config.notify_type:
-                    from falsealarm.core.notify import NotifyManager, NotifyError
+                    from falsealarm.core.notify import NotifyError, NotifyManager
                     try:
                         notifier = NotifyManager(
                             notify_type=target_config.notify_type,
@@ -342,7 +346,7 @@ async def _run_scan(
                     columns = list(data[0].keys())
                     rows = [[str(item.get(col, "")) for col in columns] for item in data]
                     logger.table(f"{mod_name.upper()} Results ({current_target})", columns, rows)
-        
+
         if output:
             # If multiple targets, append target name to output file to avoid overwrite
             final_output = output
@@ -350,7 +354,7 @@ async def _run_scan(
                 base, ext = os.path.splitext(output)
                 safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
                 final_output = f"{base}_{safe_target}{ext}"
-                
+
             await OutputManager.export(scan_results, final_output, format_type)
             if not silent:
                 logger.success(f"Results for {current_target} saved to {final_output}")
@@ -365,9 +369,9 @@ async def _run_scan(
             await PentestReport.export(current_target, scan_results, final_report)
             if not silent:
                 logger.success(f"Pentest report for {current_target} saved to {final_report}")
-                
+
         await engine.close()
-        
+
     await db.close()
 
 @app.command(name="build-engine")
@@ -377,23 +381,24 @@ def build_engine():
     """
     import subprocess
     import sys
+
     from rich.console import Console
     console = Console()
-    
+
     console.print("[*] Locating Go environment...")
     try:
         subprocess.run(["go", "version"], check=True, capture_output=True)
     except Exception:
         console.print("[red][!] Go compiler not found. Please install Go (https://go.dev/doc/install) first.[/red]")
         sys.exit(1)
-        
+
     engine_dir = os.path.join(os.path.dirname(__file__), "..", "engine-go")
     if not os.path.exists(engine_dir):
         console.print("[red][!] engine-go directory not found.[/red]")
         sys.exit(1)
-        
+
     binary_name = "dirfuzz-engine.exe" if sys.platform == "win32" else "dirfuzz-engine"
-    
+
     console.print("[*] Compiling DirFuzz Go Engine...")
     try:
         subprocess.run(
@@ -413,11 +418,11 @@ def main():
     if is_help:
         from falsealarm import print_banner
         print_banner(show_help=True)
-        
+
     # Auto-inject 'scan' command for backward compatibility if the user just types `falsealarm -u ...`
     if len(sys.argv) > 1 and sys.argv[1] not in SUPPORTED_COMMANDS:
         sys.argv.insert(1, "scan")
-        
+
     app()
 
 if __name__ == "__main__":

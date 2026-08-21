@@ -7,16 +7,17 @@ Provides both single-request and batch-request interfaces.
 """
 
 import asyncio
-import time
 import ssl
-import certifi
-import aiohttp
+import time
 from urllib.parse import urlparse
 
+import aiohttp
+import certifi
+
 from falsealarm.core.config import ScanConfig
-from falsealarm.core.rate_limiter import TokenBucketRateLimiter
 from falsealarm.core.fingerprint import RequestFingerprint
 from falsealarm.core.proxy import ProxyManager
+from falsealarm.core.rate_limiter import TokenBucketRateLimiter
 
 
 class AsyncEngine:
@@ -57,6 +58,7 @@ class AsyncEngine:
             rate=float(self.config.rate),
             burst=min(self.config.rate, 50),
             per_host_rate=float(self.config.rate) / 2,
+            adaptive=self.config.adaptive_rate,
         )
 
         # Initialize fingerprint randomizer
@@ -70,6 +72,12 @@ class AsyncEngine:
             proxy_file=self.config.proxy_file,
         )
         await self._proxy_manager.load_proxies()
+
+        # Health-check a proxy pool up front so dead nodes are pruned before
+        # the scan starts (only worthwhile when a pool/file was supplied).
+        # Kept silent to avoid polluting stdout for JSON/NDJSON pipelines.
+        if self._proxy_manager.total > 1:
+            await self._proxy_manager.health_check_all(timeout=min(self.config.timeout, 5))
 
         # Create connector
         connector = self._proxy_manager.get_connector(
@@ -139,19 +147,19 @@ class AsyncEngine:
 
         max_retries = 2
         backoff_times = [0.5, 1.5]
-        
+
         for attempt in range(max_retries + 1):
             try:
                 # Extract host for per-host rate limiting
                 host = urlparse(url).hostname or ""
-    
+
                 # Wait for rate limiter
                 await self._rate_limiter.acquire(host=host)
-    
+
                 # Apply delay if configured
                 if self.config.delay > 0:
                     await asyncio.sleep(self.config.delay / 1000.0)
-    
+
                 # Build headers
                 # We need to copy kwargs['headers'] if we're retrying so we don't pop it permanently
                 req_kwargs = kwargs.copy()
@@ -160,12 +168,12 @@ class AsyncEngine:
                     fp_headers = self._fingerprint.get_headers()
                     fp_headers.update(headers)
                     headers = fp_headers
-    
+
                 # Get proxy for aiohttp
                 proxy = None
                 if self._proxy_manager and self._proxy_manager.has_proxies:
                     proxy = self._proxy_manager.get_proxy_for_aiohttp()
-    
+
                 # Send request
                 start_time = time.monotonic()
                 async with self._session.request(
@@ -178,7 +186,7 @@ class AsyncEngine:
                     **req_kwargs,
                 ) as response:
                     elapsed = time.monotonic() - start_time
-    
+
                     body = ""
                     try:
                         body = await response.text(errors="replace")
@@ -188,7 +196,7 @@ class AsyncEngine:
                             body = raw.decode("utf-8", errors="replace")
                         except Exception:
                             body = ""
-    
+
                     # Extract title from HTML
                     title = ""
                     if "<title>" in body.lower():
@@ -196,12 +204,12 @@ class AsyncEngine:
                         end = body.lower().find("</title>", start)
                         if end > start:
                             title = body[start:end].strip()[:200]
-    
+
                     # Get redirect URL
                     redirect_url = None
                     if response.history:
                         redirect_url = str(response.url)
-    
+
                     result.update(
                         {
                             "status": response.status,
@@ -213,19 +221,19 @@ class AsyncEngine:
                             "redirect_url": redirect_url,
                         }
                     )
-                    
+
                     # Report success to rate limiter
                     if self._rate_limiter:
                         await self._rate_limiter.report_status(success=True, status_code=response.status)
-                    
+
                     # If we got a valid response (even 4xx/5xx), don't retry network loop
                     break
-    
+
             except (asyncio.TimeoutError, aiohttp.ClientConnectorError, aiohttp.ClientError) as e:
                 # Report failure to rate limiter
                 if self._rate_limiter:
                     await self._rate_limiter.report_status(success=False)
-                    
+
                 if attempt < max_retries:
                     await asyncio.sleep(backoff_times[attempt])
                     continue

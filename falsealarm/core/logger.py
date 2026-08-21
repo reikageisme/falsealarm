@@ -5,20 +5,21 @@ Provides colored, formatted console output using the Rich library.
 Handles Windows encoding issues by forcing UTF-8 output.
 """
 
-import io
 import sys
 from datetime import datetime
 from typing import Any
+
 from rich.console import Console
-from rich.table import Table
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
     TimeRemainingColumn,
 )
+from rich.table import Table
+
 from falsealarm.core.config import ScanConfig
 
 

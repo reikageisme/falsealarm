@@ -1,11 +1,11 @@
 import asyncio
 import os
-import yaml
-from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
-from falsealarm.modules.base import BaseModule, ModuleResult
+
+import yaml
+
 from falsealarm.core.utils import get_data_path
+from falsealarm.modules.base import BaseModule, ModuleResult
 
 
 def evaluate_matchers(
@@ -71,7 +71,7 @@ class VulnScanModule(BaseModule):
         # Load templates
         templates_dir = get_data_path("templates")
         template_files = []
-        
+
         if os.path.exists(templates_dir):
             for root, _, files in os.walk(templates_dir):
                 for file in files:
@@ -107,7 +107,7 @@ class VulnScanModule(BaseModule):
             for req in template.get("requests", []):
                 method = req.get("method", "GET")
                 path = req.get("path", "/")
-                
+
                 # Dynamic placeholder support in path
                 if "{{BaseURL}}" in path:
                     test_url = path.replace("{{BaseURL}}", target)
@@ -121,12 +121,12 @@ class VulnScanModule(BaseModule):
                     stats["requests_sent"] += 1
                     try:
                         response = await self.engine.request(
-                            method=method, 
-                            url=test_url, 
+                            method=method,
+                            url=test_url,
                             headers=headers,
                             allow_redirects=False
                         )
-                        
+
                         if response.get("error"):
                             continue
 
@@ -146,8 +146,8 @@ class VulnScanModule(BaseModule):
                             vulns.append(item)
                             stats["vulns_found"] += 1
                             self.logger.success(f"Vulnerability Found: {item['name']} [{item['severity'].upper()}] at {test_url}")
-                            
-                    except Exception as e:
+
+                    except Exception:
                         pass
             return vulns
 

@@ -1,13 +1,14 @@
 import asyncio
-import os
-import sys
 import json
+import os
 import random
 import string
+import sys
 from typing import Any
-from urllib.parse import urlparse, urljoin
-from falsealarm.modules.base import BaseModule, ModuleResult
+from urllib.parse import urljoin, urlparse
+
 from falsealarm.core.utils import get_data_path
+from falsealarm.modules.base import BaseModule, ModuleResult
 
 
 def is_baseline_match(
@@ -28,6 +29,27 @@ class DirFuzzModule(BaseModule):
     name = "dirfuzz"
     description = "Advanced Parameter & Directory Fuzzing"
 
+    def _select_user_agent(self) -> str:
+        """Pick the User-Agent the Go engine should send.
+
+        Reuses the running engine's fingerprint when available so the Go
+        worker blends in exactly like the Python requests instead of
+        advertising a hard-coded 'FalseAlarm-Go-Engine' banner.
+        """
+        fp = getattr(self.engine, "_fingerprint", None)
+        if fp is not None:
+            try:
+                return fp.get_user_agent()
+            except Exception:
+                pass
+        try:
+            from falsealarm.core.fingerprint import RequestFingerprint
+            return RequestFingerprint(
+                random_agent=getattr(self.config, "random_agent", False)
+            ).get_user_agent()
+        except Exception:
+            return ""
+
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
         results: list[dict[str, Any]] = []
@@ -35,9 +57,9 @@ class DirFuzzModule(BaseModule):
 
         if not target.startswith("http"):
             target = f"http://{target}"
-            
+
         has_fuzz = "FUZZ" in target
-        
+
         # Ensure trailing slash if it's a directory brute-force
         if not has_fuzz and not target.endswith("/"):
             target += "/"
@@ -83,28 +105,38 @@ class DirFuzzModule(BaseModule):
             binary_name = "dirfuzz-engine.exe"
         else:
             binary_name = "dirfuzz-engine"
-            
+
         go_engine_path = os.path.join(os.path.dirname(__file__), "..", "..", "engine-go", binary_name)
-        
+
         if os.path.exists(go_engine_path):
-            self.logger.info(f"🚀 Engaging Go-based High Speed Fuzzing Engine...")
+            self.logger.info("🚀 Engaging Go-based High Speed Fuzzing Engine...")
             target_fuzz = target if has_fuzz else urljoin(target, "FUZZ")
-            
+
             cmd = [
                 go_engine_path,
                 "-u", target_fuzz,
                 "-w", wordlist_path,
                 "-t", str(self.config.threads),
-                "-timeout", str(self.config.timeout)
+                "-timeout", str(self.config.timeout),
             ]
-            
+
+            # Propagate OPSEC settings so the Go engine matches the Python
+            # orchestrator: same proxy, same rate ceiling, same User-Agent.
+            if self.config.proxy:
+                cmd += ["-proxy", self.config.proxy]
+            if self.config.rate and self.config.rate > 0:
+                cmd += ["-rate", str(self.config.rate)]
+            ua = self._select_user_agent()
+            if ua:
+                cmd += ["-ua", ua]
+
             try:
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                
+
                 # Stream NDJSON line-by-line from Go subprocess stdout
                 while True:
                     line = await process.stdout.readline()
@@ -118,7 +150,7 @@ class DirFuzzModule(BaseModule):
                         if "error" in r:
                             self.logger.error(f"Go engine error: {r['error']}")
                             continue
-                        
+
                         url = r.get("url")
                         status = int(r.get("status") or 0)
                         length = int(r.get("length") or 0)
@@ -136,7 +168,7 @@ class DirFuzzModule(BaseModule):
                                 "length": length
                             }
                             results.append(item)
-                            
+
                             if status == 403:
                                 stats["forbidden"] += 1
                                 self.logger.warning(f"Forbidden: {url} [403]")
@@ -155,7 +187,7 @@ class DirFuzzModule(BaseModule):
                     self.logger.error(f"Go engine failed: {stderr.decode()}")
             except OSError as e:
                 self.logger.warning(f"Could not execute Go binary (OS Policy/AV blocking?): {e}")
-                
+
             self.logger.warning("Falling back to Python Async Engine...")
         else:
             self.logger.warning("Go binary not found. Running in Python Async Engine fallback mode...")
@@ -175,7 +207,7 @@ class DirFuzzModule(BaseModule):
                     if not response.get("error"):
                         status = response.get("status", 0)
                         length = response.get("content_length", 0)
-                        
+
                         # False Positive Smart Filter
                         if matches_baseline(status, length):
                             stats["false_positives_dropped"] += 1
@@ -189,17 +221,17 @@ class DirFuzzModule(BaseModule):
                                 "status": status,
                                 "length": length
                             }
-                            
+
                             if status in (301, 302, 307, 308):
                                 item["redirect"] = response.get("headers", {}).get("Location", "")
-                            
+
                             if status == 403:
                                 stats["forbidden"] += 1
                                 self.logger.warning(f"Forbidden: {test_url} [403]")
                             else:
                                 stats["found"] += 1
                                 self.logger.success(f"Found: {test_url} [Status: {status}, Size: {length}]")
-                                
+
                             return item
                 except Exception:
                     pass

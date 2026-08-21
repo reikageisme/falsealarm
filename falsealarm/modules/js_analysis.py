@@ -2,10 +2,12 @@ import asyncio
 import re
 from typing import Any
 from urllib.parse import urljoin, urlparse
+
 from bs4 import BeautifulSoup
-from pyjsparser import parse
-from falsealarm.modules.base import BaseModule, ModuleResult
+
 from falsealarm.core.utils import canonical_url
+from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class JSAnalysisModule(BaseModule):
     name = "js_analysis"
@@ -21,7 +23,7 @@ class JSAnalysisModule(BaseModule):
         "Github Access Token": r'ghp_[0-9a-zA-Z]{36}',
         "JWT Token": r'eyJ[a-zA-Z0-9]{10,}\.eyJ[a-zA-Z0-9]{10,}\.[a-zA-Z0-9_\-]+'
     }
-    
+
     # Regex for endpoints
     ENDPOINT_PATTERN = re.compile(
         r'["\'](https?://[^"\'\\\s]+|/[A-Za-z0-9._~-][A-Za-z0-9._~/?#=&%+:-]*)["\']'
@@ -43,11 +45,11 @@ class JSAnalysisModule(BaseModule):
 
             html_body = response.get("body", "")
             js_urls = self._extract_js_urls(html_body, target)
-            
+
             if not js_urls:
                 self.logger.debug("No external JS files found on the target.")
                 return self._make_result(target, results, stats)
-                
+
             self.logger.info(f"Found {len(js_urls)} JS files. Analyzing...")
 
             # 2. Download and analyze JS files concurrently
@@ -56,10 +58,10 @@ class JSAnalysisModule(BaseModule):
                     res = await self.engine.get(js_url)
                     if res.get("error") or res.get("status") != 200:
                         return None
-                        
+
                     js_code = res.get("body", "")
                     stats["js_files_analyzed"] += 1
-                    
+
                     found_secrets = []
                     found_endpoints = set()
 
@@ -81,20 +83,6 @@ class JSAnalysisModule(BaseModule):
                             if normalized:
                                 found_endpoints.add(normalized)
 
-                    # AST Analysis (Optional/Basic)
-                    # We can use pyjsparser to find string literals, but regex is often faster
-                    # for pentesting JS files. If the user strictly wants AST, we wrap it in a try-except
-                    # because minified JS often breaks pyjsparser.
-                    try:
-                        # AST is heavy, we run it in a thread if the file isn't massive
-                        if len(js_code) < 500000: # Skip AST for files > 500KB
-                            ast = await asyncio.to_thread(parse, js_code)
-                            # Basic AST traversal could be implemented here to find API calls
-                            # For now, regex covers the primary requirement effectively.
-                            pass
-                    except Exception as e:
-                        self.logger.debug(f"AST parsing skipped for {js_url}: {e}")
-
                     if found_secrets or found_endpoints:
                         return {
                             "type": "js_analysis",
@@ -102,7 +90,7 @@ class JSAnalysisModule(BaseModule):
                             "secrets": found_secrets,
                             "endpoints": list(found_endpoints)
                         }
-                        
+
                 except Exception as e:
                     self.logger.debug(f"Failed to analyze {js_url}: {e}")
                 return None

@@ -9,17 +9,18 @@ via the SQLite database.
 from __future__ import annotations
 
 import json
-import time
 import os
+import time
 from typing import TYPE_CHECKING
-from rich.panel import Panel
+
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 if TYPE_CHECKING:
-    from falsealarm.core.engine import AsyncEngine
-    from falsealarm.core.db import Database
-    from falsealarm.core.logger import FalseAlarmLogger
     from falsealarm.core.config import ScanConfig
+    from falsealarm.core.db import Database
+    from falsealarm.core.engine import AsyncEngine
+    from falsealarm.core.logger import FalseAlarmLogger
 
 
 class ScanScheduler:
@@ -42,6 +43,12 @@ class ScanScheduler:
     # Quick scan modules (fast, no heavy I/O)
     QUICK_MODULES = {"dns", "headers", "ssl"}
 
+    # Non-default web ports worth feeding downstream. The default ports
+    # (80/443) are intentionally excluded: the supplied root is already an
+    # httpprobe entry point, so re-adding them would only duplicate work.
+    HTTP_PORTS = {8000, 8008, 8080, 8888}
+    HTTPS_PORTS = {8443}
+
     def __init__(
         self,
         config: "ScanConfig",
@@ -60,13 +67,13 @@ class ScanScheduler:
     def _discover_modules(self) -> None:
         """Automatically discover and register all subclasses of BaseModule in the modules package."""
         import importlib
-        import pkgutil
         import inspect
-        
+        import pkgutil
+
         # We need to import falsealarm.modules so we can scan it
         import falsealarm.modules as modules_pkg
         from falsealarm.modules.base import BaseModule
-        
+
         # Load all modules in the package
         prefix = modules_pkg.__name__ + "."
         for _, modname, _ in pkgutil.iter_modules(modules_pkg.__path__, prefix):
@@ -88,7 +95,7 @@ class ScanScheduler:
 
     def register_module(self, module_class) -> None:
         """Manually register a module class (mostly for testing).
-        
+
         Args:
             module_class: A subclass of BaseModule with a 'name' attribute.
         """
@@ -131,9 +138,9 @@ class ScanScheduler:
         database. Returns a dict mapping module names to their results.
         """
         from falsealarm.core.pipeline import PipelineManager
-        from falsealarm.core.waf_detect import detect_waf
         from falsealarm.core.utils import canonical_url
-        
+        from falsealarm.core.waf_detect import detect_waf
+
         pipeline = PipelineManager(self.config)
         requested_modules = pipeline.get_allowed_modules()
         unknown_modules = [m for m in requested_modules if m not in self._modules]
@@ -143,14 +150,14 @@ class ScanScheduler:
                 f"Available: {', '.join(sorted(self._modules))}"
             )
         allowed_modules = [m for m in requested_modules if m in self._modules]
-        
+
         if not allowed_modules:
             self.logger.warning("No modules to run for this profile.")
             return {}
 
         # Start engine
         await self.engine.start()
-        
+
         # WAF Detection (Phase 1)
         self.logger.info("Running pre-scan WAF detection...")
         waf_detected, waf_name = await detect_waf(self.config.target, self.engine)
@@ -184,18 +191,18 @@ class ScanScheduler:
 
         all_results = {}
         total_start = time.time()
-        
+
         # Simple BFS traversal of the DAG
         queue = []
-        
+
         # We start with the entry points and the initial target
         for ep in pipeline.get_entry_points():
             if ep in allowed_modules:
                 queue.append((ep, self.config.target))
-            
+
         executed_nodes = set() # (module_name, target)
         interrupted = False
-        
+
         while queue:
             current_module, current_target = queue.pop(0)
 
@@ -204,7 +211,7 @@ class ScanScheduler:
             if node_id in executed_nodes:
                 continue
             executed_nodes.add(node_id)
-            
+
             try:
                 # Temporarily override target config for run_module
                 original_target = self.config.target
@@ -213,25 +220,25 @@ class ScanScheduler:
                     result = await self.run_module(current_module)
                 finally:
                     self.config.target = original_target
-                
+
                 if result:
                     # Store results. We aggregate if multiple targets run the same module.
                     if current_module not in all_results:
                         all_results[current_module] = result.to_dict()
                     else:
                         all_results[current_module]["data"].extend(result.data)
-                        
+
                     # Extract new targets for downstream
                     new_targets = self._extract_downstream_targets(current_module, result.data)
                     if not new_targets and current_module not in {"subdomain", "portscan", "httpprobe"}:
                         # Fallback to the same target if module doesn't generate new ones
                         new_targets = [current_target]
-                        
+
                     downstreams = pipeline.get_downstream(current_module)
                     for ds in downstreams:
                         for nt in new_targets:
                             queue.append((ds, nt))
-                            
+
             except KeyboardInterrupt:
                 self.logger.warning("Scan interrupted by user.")
                 await self.db.update_scan_status(self._scan_id, "interrupted")
@@ -266,7 +273,7 @@ class ScanScheduler:
                     from falsealarm.core.ai.gemini_provider import GeminiProvider
                     ai = GeminiProvider(api_key=api_key)
                     self.logger.info("Sending scan results to AI for analysis. This may take a few seconds...")
-                    
+
                     prompt = (
                         "You are a professional Penetration Tester and Bug Bounty Hunter. "
                         "I have provided you with a JSON dump of my reconnaissance and vulnerability scan results. "
@@ -277,9 +284,9 @@ class ScanScheduler:
                         "3. Recommendations for further manual testing.\n"
                         "Do not just list the data back to me. Provide hacker-oriented insights."
                     )
-                    
+
                     analysis = await ai.analyze(data=all_results, prompt=prompt)
-                    
+
                     if not self.logger.silent:
                         self.logger.console.print("\n")
                         self.logger.console.print(Panel(
@@ -292,7 +299,7 @@ class ScanScheduler:
                     self.logger.error(f"AI Triage failed: {e}")
 
         return all_results
-        
+
     def _extract_downstream_targets(self, module_name: str, data: list) -> list[str]:
         """Extract URLs/domains from a module's output to feed into downstream modules."""
         from falsealarm.core.utils import canonical_url
@@ -303,12 +310,14 @@ class ScanScheduler:
                 domain = item.get("domain")
                 if domain: targets.append(domain)
             elif module_name == "portscan":
-                # Only HTTP ports should go to httpprobe/vulnscan etc
+                # Promote open non-default web ports (8000/8008/8080/8443/8888)
+                # into the pipeline. Previously only 8080/8443 were forwarded,
+                # so services on 8000/8008/8888 were silently dropped.
                 port = item.get("port")
                 target = item.get("target")
-                if port in [8080, 8443] and target:
-                    protocol = "https" if port in [443, 8443] else "http"
-                    targets.append(f"{protocol}://{target}:{port}")
+                if target and port in self.HTTP_PORTS | self.HTTPS_PORTS:
+                    scheme = "https" if port in self.HTTPS_PORTS else "http"
+                    targets.append(f"{scheme}://{target}:{port}")
             elif module_name == "httpprobe":
                 url = item.get("url")
                 if url and item.get("alive"):

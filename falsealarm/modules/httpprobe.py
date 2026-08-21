@@ -1,8 +1,9 @@
 import asyncio
 import hashlib
 from typing import Any
-from urllib.parse import urlparse
+
 from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class HTTPProbeModule(BaseModule):
     name = "httpprobe"
@@ -26,7 +27,7 @@ class HTTPProbeModule(BaseModule):
                 if not response.get("error"):
                     status = response.get("status", 0)
                     body = response.get("body", "")
-                    
+
                     # Compute a simple similarity hash (SimHash logic simplified for Phase 2)
                     # We hash the length and status code to group identical responses
                     sim_hash = hashlib.md5(f"{status}_{len(body)}_{response.get('title', '')}".encode()).hexdigest()

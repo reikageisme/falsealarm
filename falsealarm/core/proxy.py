@@ -7,9 +7,10 @@ automatic dead proxy removal.
 """
 
 import asyncio
-import aiohttp
 from pathlib import Path
 from typing import Any
+
+import aiohttp
 
 
 class ProxyManager:

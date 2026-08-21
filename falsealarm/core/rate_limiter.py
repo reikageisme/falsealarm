@@ -37,7 +37,7 @@ class TokenBucketRateLimiter:
         self.burst = burst
         self.per_host_rate = per_host_rate
         self.adaptive = adaptive
-        
+
         self.consecutive_errors = 0
         self.consecutive_successes = 0
         self._adaptive_lock = asyncio.Lock()
@@ -133,7 +133,7 @@ class TokenBucketRateLimiter:
             if not success or status_code in (429, 503):
                 self.consecutive_errors += 1
                 self.consecutive_successes = 0
-                
+
                 # If we get 3 consecutive rate limit / timeout errors, drop rate by 50%
                 if self.consecutive_errors >= 3:
                     new_rate = max(1.0, self.rate * 0.5)
@@ -143,7 +143,7 @@ class TokenBucketRateLimiter:
             else:
                 self.consecutive_successes += 1
                 self.consecutive_errors = 0
-                
+
                 # Recover rate by 20% after 20 consecutive successful requests
                 if self.consecutive_successes >= 20 and self.rate < self.max_rate:
                     new_rate = min(self.max_rate, self.rate * 1.2)

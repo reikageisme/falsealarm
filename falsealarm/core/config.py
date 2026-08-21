@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any
+
 
 @dataclass
 class ScanConfig:
@@ -49,18 +50,19 @@ class ScanConfig:
     @classmethod
     def from_file(cls, filepath: str, profile: str = "default") -> "ScanConfig":
         """Load configuration from a YAML file for a specific profile."""
-        import yaml
         import os
-        
+
+        import yaml
+
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Configuration file not found: {filepath}")
-            
+
         with open(filepath, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-            
+
         if not data or profile not in data:
             raise ValueError(f"Profile '{profile}' not found in {filepath}")
-            
+
         return cls.from_dict(data[profile])
 
     def validate(self) -> None:

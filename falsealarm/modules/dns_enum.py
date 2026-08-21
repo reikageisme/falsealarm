@@ -1,19 +1,22 @@
 import asyncio
+
+import dns.exception
+import dns.query
+import dns.rdatatype
 import dns.resolver
 import dns.zone
-import dns.query
-import dns.exception
-import dns.rdatatype
+
 from falsealarm.modules.base import BaseModule, ModuleResult
+
 
 class DNSEnumModule(BaseModule):
     name = "dns"
     description = "DNS Record Enumeration — Enumerate all DNS records for a domain"
-    
+
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
         self.logger.module_header(f"DNS Enumeration: {target}")
-        
+
         records = []
         stats = {
             "total_records": 0,
@@ -22,13 +25,13 @@ class DNSEnumModule(BaseModule):
             "spf": False,
             "dmarc": False
         }
-        
+
         record_types = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'SRV', 'CAA']
-        
+
         resolver = dns.resolver.Resolver()
         resolver.timeout = self.config.timeout
         resolver.lifetime = self.config.timeout
-        
+
         # Async queries mapping
         async def query_record(record_type: str):
             try:
@@ -38,7 +41,7 @@ class DNSEnumModule(BaseModule):
                 for rdata in answers:
                     val = rdata.to_text().strip('"')
                     res.append({"type": record_type, "name": target, "value": val, "ttl": answers.rrset.ttl})
-                    
+
                     if record_type == 'TXT':
                         if val.startswith('v=spf1'):
                             stats["spf"] = True
@@ -51,7 +54,7 @@ class DNSEnumModule(BaseModule):
 
         tasks = [query_record(rt) for rt in record_types]
         results = await asyncio.gather(*tasks)
-        
+
         nameservers = []
         for r_type, res in results:
             if res:
@@ -85,7 +88,7 @@ class DNSEnumModule(BaseModule):
                 return res
             except Exception:
                 return []
-        
+
         dkim_tasks = [query_dkim(s) for s in dkim_selectors]
         dkim_results = await asyncio.gather(*dkim_tasks)
         for res in dkim_results:
@@ -99,7 +102,7 @@ class DNSEnumModule(BaseModule):
                 ns_ip = ns_ans[0].to_text()
             except Exception:
                 continue
-            
+
             if ns_ip:
                 try:
                     self.logger.debug(f"Attempting AXFR on {ns} ({ns_ip}) for {target}")
@@ -119,17 +122,17 @@ class DNSEnumModule(BaseModule):
                     break  # Found one, no need to try others
                 except Exception as e:
                     self.logger.debug(f"AXFR failed on {ns}: {e}")
-        
+
         stats["total_records"] = len(records)
-        
+
         # Display Table
         if records and not self.config.silent:
             rows = [[r["type"], r["name"], r["value"], str(r["ttl"])] for r in records]
             self.logger.table("DNS Records", ["Type", "Name", "Value", "TTL"], rows)
-        
+
         if not records:
             self.logger.warning("No DNS records found.")
         else:
             self.logger.success(f"Found {len(records)} DNS records.")
-        
+
         return self._make_result(target, records, stats)
