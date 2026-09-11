@@ -32,6 +32,28 @@ This section guides you through submitting an enhancement suggestion for FalseAl
 * Ensure all tests pass.
 * Follow the styleguides below.
 
+## Good First Issues
+
+New to the project? These are self-contained tasks that touch one area and are
+a great way to make your first contribution. Look for issues labelled
+[`good first issue`](https://github.com/reikageisme/falsealarm/labels/good%20first%20issue),
+or open a PR for any of these:
+
+- **Add a YAML vulnerability template** in `falsealarm/data/templates/` for a
+  specific CVE or exposed-file check (see the existing templates for the
+  regex / header / negative-matcher format).
+- **Add a technology signature** to `falsealarm/data/tech_signatures.json` so
+  `tech` fingerprints one more CMS / framework / WAF.
+- **Grow a wordlist** — extend `data/wordlists/common_dirs.txt` or
+  `subdomains_top1k.txt` with high-signal, low-noise entries.
+- **Improve the Markdown handoff report** (`core/report.py`) — clearer
+  severity grouping or a findings summary table.
+- **Add tests** for an under-covered module in `tests/`.
+- **Docs** — add a real-world workflow to [`docs/USAGE.md`](docs/USAGE.md).
+
+Small, focused PRs get reviewed fastest. When in doubt, open an issue first to
+discuss the approach.
+
 ## Styleguides
 
 ### Git Commit Messages

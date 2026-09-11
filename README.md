@@ -10,7 +10,8 @@
   <p><strong>An out-of-the-box, Polyglot (Python + Go) & AI-Ready Attack Surface Mapping Engine.</strong></p>
 
   <p>
-    <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/badge/pypi-v1.0.0--dev-2563eb?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI version" /></a>
+    <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/pypi/v/falsealarm?style=for-the-badge&logo=pypi&logoColor=white&color=2563eb" alt="PyPI version" /></a>
+    <a href="https://pypi.org/project/falsealarm/"><img src="https://img.shields.io/pypi/dm/falsealarm?style=for-the-badge&color=8b5cf6&label=downloads" alt="PyPI downloads" /></a>
     <a href="https://github.com/reikageisme/falsealarm/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-16a34a.svg?style=for-the-badge" alt="license" /></a>
     <a href="https://github.com/reikageisme/falsealarm/stargazers"><img src="https://img.shields.io/github/stars/reikageisme/falsealarm?style=for-the-badge&color=eab308" alt="stars" /></a>
     <a href="https://github.com/reikageisme/falsealarm/network/members"><img src="https://img.shields.io/github/forks/reikageisme/falsealarm?style=for-the-badge&color=blue" alt="forks" /></a>
@@ -32,6 +33,7 @@
   <a href="#usage-guide">Usage Guide</a> •
   <a href="#ai-triage-integration">AI Triage</a> •
   <a href="#contributing">Contributing</a> •
+  <a href="CHANGELOG.md">Changelog</a> •
   <a href="#license">License</a>
 </div>
 
@@ -63,7 +65,7 @@ To launch FalseAlarm after installation, simply type `falsealarm` or run a targe
 │  \___  /  (____  / |____/____  >  |__|    |____(____  /__|  |__|_|  / │
 │      \/        \/            \/                     \/            \/  │
 │                                                                       │
-│ v1.0.0-dev | Codename: Phantom Strike                                 │
+│ v1.0.0 | Codename: Phantom Strike                                     │
 │ Asynchronous I/O Engine Active | Python 3.14.6                        │
 │ Developed by reikageisme                                              │
 ╰─────────────────────────  Deep InfoSec Lab  ──────────────────────────╯
@@ -137,9 +139,41 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 
 ## Installation
 
-FalseAlarm is designed to be deployed rapidly across diverse penetration testing environments.
+> **TL;DR:** `pipx install falsealarm` and you are scanning in under a minute.
+> The Go engine auto-downloads on first use — no Go toolchain required.
 
-### Option 1: Standard Development Install (Recommended)
+### Option 1 — From PyPI (recommended)
+
+```bash
+pip install falsealarm
+falsealarm scan -u example.com -q
+```
+
+On Debian / Kali / Ubuntu, PEP 668 blocks a system-wide `pip install`
+(`externally-managed-environment`). Use **pipx** (best for a CLI tool) or a
+virtual environment:
+
+```bash
+# pipx keeps FalseAlarm in its own isolated environment
+pipx install falsealarm
+
+# ...or a plain venv
+python3 -m venv .venv && source .venv/bin/activate && pip install falsealarm
+```
+
+Optional Shodan-compatible favicon hashing:
+
+```bash
+pipx install "falsealarm[favicon]"
+```
+
+> On first run the high-speed Go fuzzing engine auto-downloads a prebuilt
+> binary from the latest [GitHub Release](https://github.com/reikageisme/falsealarm/releases).
+> If none is available it falls back gracefully to the pure-Python fuzzing
+> engine, so FalseAlarm always works out of the box.
+
+### Option 2 — From source (for development)
+
 ```bash
 git clone https://github.com/reikageisme/falsealarm.git
 cd falsealarm
@@ -147,27 +181,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# Compile high-speed Go Fuzzing engine
+# Optionally compile the Go fuzzing engine locally (else it is auto-fetched)
 python -m falsealarm build-engine
-# NOTE: rebuild the Go engine whenever you pull changes to engine-go/ so it
-# picks up new flags (proxy/rate/User-Agent). A stale binary simply causes a
-# graceful fallback to the Python fuzzing engine.
 ```
 
-### Option 2: Isolated Global Install (via pipx)
-```bash
-pipx install git+https://github.com/reikageisme/falsealarm.git
+### Option 3 — Docker
 
-# Optional: Shodan-compatible favicon hashing
-pipx install "falsealarm[favicon] @ git+https://github.com/reikageisme/falsealarm.git"
-```
-
-> Prebuilt Go engine binaries for Linux/macOS/Windows are attached to each
-> GitHub Release. If the Go toolchain isn't installed, `falsealarm build-engine`
-> will download the matching prebuilt binary automatically.
-
-### Option 3: Docker Deployment
-Build and run FalseAlarm in an isolated container. The Dockerfile compiles the Go engine during the build process automatically.
+The Dockerfile compiles the Go engine during the build automatically.
 
 ```bash
 git clone https://github.com/reikageisme/falsealarm.git
