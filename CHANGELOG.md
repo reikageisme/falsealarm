@@ -4,6 +4,19 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-11
+
+### Fixed
+- **Eliminated soft-200 / catch-all false positives.** Targets that answer
+  every path with HTTP 200 (SPAs, WAF/CDN edges) no longer produce a storm of
+  bogus directory hits: `dirfuzz` now detects a catch-all statistically and
+  drops indistinguishable 200s while keeping redirects, 403s, and rare-sized
+  outliers — even when the up-front baseline probe is blocked.
+- **Bundled vulnerability templates now AND their matchers.** `.env`,
+  `.git/config`, AWS-keys and CVE-2021-41773 set `matchers-condition: and`, so a
+  bare 200 response can no longer trigger a critical/high finding on a catch-all
+  page.
+
 ## [1.0.0] - 2026-09-11
 
 First stable release. FalseAlarm is a polyglot (Python + Go), fully
@@ -50,4 +63,5 @@ architecture, a nuclei-style YAML vulnerability engine, and optional LLM triage.
 - Dropped the unmaintained `pyjsparser` dependency (it broke `pip install` on
   modern setuptools and contributed nothing — regex handling covers JS scanning).
 
+[1.0.1]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.1
 [1.0.0]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.0

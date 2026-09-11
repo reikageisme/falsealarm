@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "falsealarm"
-version = "1.0.0"
+version = "1.0.1"
 description = "Async Web Reconnaissance Engine for Pentesters & Bug Bounty Hunters"
 readme = "README.md"
 license = {text = "MIT"}
