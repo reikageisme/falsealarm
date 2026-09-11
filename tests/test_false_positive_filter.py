@@ -67,3 +67,18 @@ def test_shipped_templates_require_and_condition():
                 matchers_condition="and",
             )
             assert not fired, f"{data.get('id')} still fires on a plain 200 catch-all page"
+
+
+def test_drop_catch_all_absolute_cluster_below_ratio():
+    """8080 regression: a big same-size 200 cluster is a catch-all even when it
+    sits below the overall-ratio gate (one catch-all size was already filtered
+    per-request, so the leaked size is only a small fraction of the wordlist)."""
+    results = [{"status": 200, "length": 5494} for _ in range(50)]
+    results += [
+        {"status": 301, "length": 536},
+        {"status": 200, "length": 12698},  # real sitemap.xml
+        {"status": 200, "length": 1937},   # real robots.txt
+    ]
+    kept, dropped = DirFuzzModule._drop_catch_all(results, tested=299)  # 50/299 = 16.7%
+    assert dropped == 50
+    assert sorted(r["length"] for r in kept if r["status"] == 200) == [1937, 12698]

@@ -4,6 +4,16 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-09-11
+
+### Fixed
+- **Deterministic catch-all detection via response-body signatures.** A catch-all
+  page served at randomly varying sizes (an SPA behind a CDN) could still leak
+  bogus 200 hits when the baseline probes happened to sample only one size.
+  `dirfuzz` now matches hits against the catch-all's *structural* body signature
+  (stable across sizes), so one probe recognises every variant; the statistical
+  net also fires on any implausibly crowded same-size 200 cluster.
+
 ## [1.0.2] - 2026-09-11
 
 ### Fixed
@@ -73,6 +83,7 @@ architecture, a nuclei-style YAML vulnerability engine, and optional LLM triage.
 - Dropped the unmaintained `pyjsparser` dependency (it broke `pip install` on
   modern setuptools and contributed nothing — regex handling covers JS scanning).
 
+[1.0.3]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.3
 [1.0.2]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.2
 [1.0.1]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.1
 [1.0.0]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.0

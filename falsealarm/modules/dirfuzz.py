@@ -7,6 +7,7 @@ import sys
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
+from falsealarm.core.similarity import calculate_signature, is_similar
 from falsealarm.core.utils import get_data_path
 from falsealarm.modules.base import BaseModule, ModuleResult
 
@@ -45,12 +46,16 @@ class DirFuzzModule(BaseModule):
         from collections import Counter
 
         twos = [r for r in results if r.get("status") == 200]
-        if tested <= 0 or len(twos) < 15 or (len(twos) / tested) < 0.20:
+        if len(twos) < 15:
             return results, 0
 
         BUCKET = 256  # bytes; SPA path-echo makes exact lengths vary slightly
         counts = Counter((r.get("length") or 0) // BUCKET for r in twos)
-        common = {b for b, c in counts.items() if c >= 8}
+        # A size bucket is a catch-all when it is implausibly crowded (>=20 hits
+        # of the same size is never a real directory listing) or when 200s
+        # dominate the scan and the bucket is moderately crowded.
+        ratio_ok = tested > 0 and (len(twos) / tested) >= 0.20
+        common = {b for b, c in counts.items() if c >= 20 or (ratio_ok and c >= 8)}
         if not common:
             return results, 0
 
@@ -182,7 +187,8 @@ class DirFuzzModule(BaseModule):
 
         statuses_seen: list[int] = []
         lengths_seen: list[int] = []
-        for _ in range(4):
+        sigs_seen: list[str] = []
+        for _ in range(3):
             rnd = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
             b_url = target.replace("FUZZ", rnd) if has_fuzz else urljoin(target, f"wildcard_test_{rnd}")
             br = await self.engine.get(b_url, allow_redirects=False)
@@ -190,17 +196,19 @@ class DirFuzzModule(BaseModule):
             if st and st != 404:
                 statuses_seen.append(st)
                 lengths_seen.append(br.get("content_length", 0))
+                sigs_seen.append(calculate_signature(br.get("body", "")))
 
         baseline_status = 0
         baseline_lengths: list[int] = []
+        baseline_sigs: list[str] = []
         use_baseline = False
         if statuses_seen:
             baseline_status, hits = _Counter(statuses_seen).most_common(1)[0]
             # Only trust it as a catch-all when the same non-404 status recurs.
             use_baseline = hits >= 2
-            baseline_lengths = sorted({
-                ln for stt, ln in zip(statuses_seen, lengths_seen) if stt == baseline_status
-            })
+            keep = [i for i, stt in enumerate(statuses_seen) if stt == baseline_status]
+            baseline_lengths = sorted({lengths_seen[i] for i in keep})
+            baseline_sigs = list({sigs_seen[i] for i in keep})
 
         self.logger.info(f"Calibrated false-positive baseline from {len(statuses_seen)} probes.")
         if use_baseline:
@@ -209,9 +217,18 @@ class DirFuzzModule(BaseModule):
                 "Engaging Smart Filter."
             )
 
-        def matches_baseline(status: int, length: int) -> bool:
-            if not use_baseline:
+        def matches_baseline(status: int, length: int, body: str | None = None) -> bool:
+            # A hit is a false positive when it is the target's catch-all page.
+            # Prefer a structural body signature (robust when the catch-all is
+            # served at several sizes, e.g. an SPA echoing the path); fall back
+            # to length when no body is available (the Go engine streams only
+            # url/status/length).
+            if not use_baseline or status != baseline_status:
                 return False
+            if body is not None and baseline_sigs:
+                sig = calculate_signature(body)
+                if any(is_similar(sig, bs, 0.75) for bs in baseline_sigs):
+                    return True
             return any(
                 is_baseline_match(status, length, baseline_status, bl, max(50, int(bl * 0.05)))
                 for bl in baseline_lengths
@@ -325,8 +342,8 @@ class DirFuzzModule(BaseModule):
                         status = response.get("status", 0)
                         length = response.get("content_length", 0)
 
-                        # False Positive Smart Filter
-                        if matches_baseline(status, length):
+                        # False Positive Smart Filter (body-signature aware)
+                        if matches_baseline(status, length, response.get("body", "")):
                             stats["false_positives_dropped"] += 1
                             return None
 
