@@ -29,6 +29,39 @@ class DirFuzzModule(BaseModule):
     name = "dirfuzz"
     description = "Advanced Parameter & Directory Fuzzing"
 
+    @staticmethod
+    def _drop_catch_all(results: list[dict], tested: int) -> tuple[list[dict], int]:
+        """Post-hoc soft-200 / catch-all guard.
+
+        Some targets (SPAs, WAF/CDN edges, custom 200-for-everything apps)
+        answer *every* path with the same page. The up-front baseline probe
+        can miss this when that single request is rate-limited or challenged,
+        so as a safety net we look at the whole result set: if a large share
+        of paths returned HTTP 200 and those 200s cluster tightly by size,
+        they are indistinguishable from the catch-all and are dropped as
+        false positives. Redirects (301/302), 403s and genuinely rare-sized
+        200 outliers are kept.
+        """
+        from collections import Counter
+
+        twos = [r for r in results if r.get("status") == 200]
+        if tested <= 0 or len(twos) < 15 or (len(twos) / tested) < 0.30:
+            return results, 0
+
+        BUCKET = 256  # bytes; SPA path-echo makes exact lengths vary slightly
+        counts = Counter((r.get("length") or 0) // BUCKET for r in twos)
+        common = {b for b, c in counts.items() if c >= 5}
+        if not common:
+            return results, 0
+
+        kept, dropped = [], 0
+        for r in results:
+            if r.get("status") == 200 and ((r.get("length") or 0) // BUCKET) in common:
+                dropped += 1
+            else:
+                kept.append(r)
+        return kept, dropped
+
     def _select_user_agent(self) -> str:
         """Pick the User-Agent the Go engine should send.
 
@@ -97,6 +130,17 @@ class DirFuzzModule(BaseModule):
                         if child.rstrip("/") not in visited:
                             agg["directories_recursed"] += 1
                             queue.append((child, d + 1))
+
+        # Safety net against catch-all / soft-200 targets that slipped past the
+        # per-request baseline filter (e.g. the baseline probe was blocked).
+        all_results, dropped = self._drop_catch_all(all_results, agg.get("paths_tested", 0))
+        if dropped:
+            agg["false_positives_dropped"] += dropped
+            agg["found"] = max(0, agg.get("found", 0) - dropped)
+            self.logger.warning(
+                f"Catch-all/soft-200 detected: dropped {dropped} indistinguishable "
+                "hits as false positives."
+            )
 
         return self._make_result(base, all_results, agg)
 

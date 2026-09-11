@@ -9,6 +9,8 @@ info:
     - config
     - sensitive
 
+matchers-condition: and
+
 requests:
   - method: GET
     path: "/.env"

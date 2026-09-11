@@ -6,6 +6,8 @@ info:
   description: Discovered exposed AWS IAM Access Keys which can be used to compromise the AWS infrastructure.
   tags: aws,exposure,keys,cloud
 
+matchers-condition: and
+
 requests:
   - method: GET
     path: /
