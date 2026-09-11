@@ -4,6 +4,16 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-09-11
+
+### Fixed
+- **Hardened catch-all detection against multi-size soft-404 pages.** SPAs that
+  echo the requested path into their fallback page serve the "not found" page at
+  several different sizes; `dirfuzz` now calibrates its baseline from multiple
+  probes (so it learns *every* catch-all size and survives a single blocked
+  probe) and the statistical safety net triggers sooner, so those pages no
+  longer leak bogus directory hits.
+
 ## [1.0.1] - 2026-09-11
 
 ### Fixed
@@ -63,5 +73,6 @@ architecture, a nuclei-style YAML vulnerability engine, and optional LLM triage.
 - Dropped the unmaintained `pyjsparser` dependency (it broke `pip install` on
   modern setuptools and contributed nothing — regex handling covers JS scanning).
 
+[1.0.2]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.2
 [1.0.1]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.1
 [1.0.0]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.0

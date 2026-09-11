@@ -45,12 +45,12 @@ class DirFuzzModule(BaseModule):
         from collections import Counter
 
         twos = [r for r in results if r.get("status") == 200]
-        if tested <= 0 or len(twos) < 15 or (len(twos) / tested) < 0.30:
+        if tested <= 0 or len(twos) < 15 or (len(twos) / tested) < 0.20:
             return results, 0
 
         BUCKET = 256  # bytes; SPA path-echo makes exact lengths vary slightly
         counts = Counter((r.get("length") or 0) // BUCKET for r in twos)
-        common = {b for b, c in counts.items() if c >= 5}
+        common = {b for b, c in counts.items() if c >= 8}
         if not common:
             return results, 0
 
@@ -172,30 +172,49 @@ class DirFuzzModule(BaseModule):
             self.logger.error(f"Failed to load wordlist from {wordlist_path}: {e}")
             return results, stats
 
-        # Baseline checking to reduce False Positives
-        # We send a request to a highly unlikely path/param to see the server's default behavior
-        random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
-        baseline_url = target.replace("FUZZ", random_str) if has_fuzz else urljoin(target, f"wildcard_test_{random_str}")
+        # Baseline calibration to reduce false positives. Probe several highly
+        # unlikely paths so we learn the target's catch-all behaviour AND every
+        # response size it serves for non-existent paths — SPAs commonly echo
+        # the requested path into the page, so the "not found" page has several
+        # sizes. Multiple probes also survive a single blocked/rate-limited
+        # request that would otherwise disable the filter entirely.
+        from collections import Counter as _Counter
 
-        self.logger.info(f"Generating false-positive baseline with payload: {random_str}")
-        baseline_resp = await self.engine.get(baseline_url, allow_redirects=False)
-        baseline_status = baseline_resp.get("status", 0)
-        baseline_length = baseline_resp.get("content_length", 0)
-        use_baseline = baseline_status not in (0, 404)
-        baseline_tolerance = max(50, int(baseline_length * 0.03))
+        statuses_seen: list[int] = []
+        lengths_seen: list[int] = []
+        for _ in range(4):
+            rnd = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
+            b_url = target.replace("FUZZ", rnd) if has_fuzz else urljoin(target, f"wildcard_test_{rnd}")
+            br = await self.engine.get(b_url, allow_redirects=False)
+            st = br.get("status", 0)
+            if st and st != 404:
+                statuses_seen.append(st)
+                lengths_seen.append(br.get("content_length", 0))
+
+        baseline_status = 0
+        baseline_lengths: list[int] = []
+        use_baseline = False
+        if statuses_seen:
+            baseline_status, hits = _Counter(statuses_seen).most_common(1)[0]
+            # Only trust it as a catch-all when the same non-404 status recurs.
+            use_baseline = hits >= 2
+            baseline_lengths = sorted({
+                ln for stt, ln in zip(statuses_seen, lengths_seen) if stt == baseline_status
+            })
+
+        self.logger.info(f"Calibrated false-positive baseline from {len(statuses_seen)} probes.")
         if use_baseline:
             self.logger.warning(
-                f"Target has a catch-all response ({baseline_status}, {baseline_length} bytes). "
+                f"Target has a catch-all response ({baseline_status}, sizes {baseline_lengths}). "
                 "Engaging Smart Filter."
             )
 
         def matches_baseline(status: int, length: int) -> bool:
-            return is_baseline_match(
-                status,
-                length,
-                baseline_status,
-                baseline_length,
-                baseline_tolerance,
+            if not use_baseline:
+                return False
+            return any(
+                is_baseline_match(status, length, baseline_status, bl, max(50, int(bl * 0.05)))
+                for bl in baseline_lengths
             )
 
         # Check if Go engine exists
