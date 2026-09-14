@@ -3,6 +3,7 @@ FalseAlarm — Gemini AI Provider
 """
 
 import json
+import os
 
 import aiohttp
 
@@ -12,9 +13,13 @@ from .base_provider import AIProvider
 class GeminiProvider(AIProvider):
     """Google Gemini AI Provider implementation using aiohttp."""
 
-    def __init__(self, api_key: str, model: str = "gemini-1.5-pro"):
+    DEFAULT_MODEL = "gemini-3.1-pro-preview"
+
+    def __init__(self, api_key: str, model: str | None = None):
         super().__init__(api_key)
-        self.model = model
+        # Model can be overridden per-call or via the GEMINI_MODEL env var,
+        # so a retired model ID never hard-blocks AI triage.
+        self.model = model or os.environ.get("GEMINI_MODEL") or self.DEFAULT_MODEL
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
     async def analyze(self, data: dict, prompt: str) -> str:
