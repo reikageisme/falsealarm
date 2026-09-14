@@ -4,6 +4,19 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-09-14
+
+### Fixed
+- **AI triage no longer points at a retired model.** The Gemini provider
+  defaulted to `gemini-1.5-pro`, which the Gemini API no longer serves, so
+  `--ai-triage` returned a 404 instead of an analysis. The default is now
+  `gemini-3.1-pro-preview`.
+
+### Added
+- **`GEMINI_MODEL` environment variable.** Overrides the triage model without
+  touching code (e.g. `GEMINI_MODEL=gemini-3.8-flash` for cheaper, faster
+  triage).
+
 ## [1.0.3] - 2026-09-11
 
 ### Fixed

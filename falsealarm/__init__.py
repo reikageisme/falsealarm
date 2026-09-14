@@ -3,7 +3,7 @@ FalseAlarm - Advanced Asynchronous Web Reconnaissance Engine
 Layer 7 Intelligence & Attack Surface Mapping Framework.
 """
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __author__ = "reikageisme"
 __license__ = "MIT"
 __codename__ = "Phantom Strike"

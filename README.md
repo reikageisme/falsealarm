@@ -87,6 +87,7 @@ For leveraging private AI triage models and custom API endpoints, FalseAlarm aut
 # Create local .env file
 cat << 'EOF' > .env
 GEMINI_API_KEY="your_google_gemini_api_key_here"
+GEMINI_MODEL="gemini-3.1-pro-preview"   # optional, this is the default
 OPENAI_API_KEY="your_openai_api_key_here"
 ANTHROPIC_API_KEY="your_anthropic_api_key_here"
 EOF
@@ -304,6 +305,14 @@ FalseAlarm introduces an AI Triage layer. By hooking into Gemini / OpenAI / Anth
 **Execute scan with AI Triage:**
 ```bash
 falsealarm scan -u example.com -A --ai-triage
+```
+
+The default triage model is `gemini-3.1-pro-preview`. Override it with the
+`GEMINI_MODEL` environment variable — for example `gemini-3.8-flash` for
+cheaper, faster triage:
+
+```bash
+GEMINI_MODEL=gemini-3.8-flash falsealarm scan -u example.com -A --ai-triage
 ```
 
 ---
