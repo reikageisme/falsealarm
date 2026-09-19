@@ -4,6 +4,24 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-09-19
+
+### Added
+- **Bundled FalseAlarm agent skill.** The wheel and source distribution now
+  include scoped operating, troubleshooting, extension, and testing guidance
+  for AI coding agents.
+- **`falsealarm install-skill`.** Installs the bundled skill for Codex, Claude,
+  a project-local `.agents/skills` directory, or a custom destination. Existing
+  installations require an explicit `--force` update.
+
+### Changed
+- The repository skill now points to the packaged canonical copy, preventing
+  the development and PyPI versions from drifting apart.
+
+### Fixed
+- **Global `--version`.** `falsealarm --version` now reports the package
+  version instead of being rejected as an unknown root option.
+
 ## [1.0.5] - 2026-09-14
 
 ### Fixed
@@ -105,6 +123,9 @@ architecture, a nuclei-style YAML vulnerability engine, and optional LLM triage.
 - Dropped the unmaintained `pyjsparser` dependency (it broke `pip install` on
   modern setuptools and contributed nothing — regex handling covers JS scanning).
 
+[1.0.6]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.6
+[1.0.5]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.5
+[1.0.4]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.4
 [1.0.3]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.3
 [1.0.2]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.2
 [1.0.1]: https://github.com/reikageisme/falsealarm/releases/tag/v1.0.1

@@ -31,12 +31,29 @@ app = typer.Typer(
     help="FalseAlarm — Async Web Reconnaissance Engine"
 )
 
-SUPPORTED_COMMANDS = {"scan", "list-scans", "modules", "build-engine", "--help", "-h", "--version"}
+SUPPORTED_COMMANDS = {
+    "scan", "list-scans", "modules", "build-engine", "install-skill",
+    "--help", "-h", "--version",
+}
 
 def version_callback(value: bool):
     if value:
         typer.echo(f"FalseAlarm v{__version__}")
         raise typer.Exit()
+
+
+@app.callback()
+def root_options(
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version",
+    ),
+):
+    """FalseAlarm command-line interface."""
+
 
 @app.command(name="list-scans")
 def list_scans(
@@ -83,6 +100,40 @@ def list_modules():
     for name in sorted(discovered):
         table.add_row(name, discovered[name])
     Console().print(table)
+
+
+@app.command(name="install-skill")
+def install_skill(
+    target: str = typer.Option(
+        "codex",
+        "--target",
+        help="Agent target: codex, claude, or project [default: codex]",
+    ),
+    destination: Optional[str] = typer.Option(
+        None,
+        "--destination",
+        help="Custom final skill directory (overrides --target)",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Update an existing FalseAlarm skill in place",
+    ),
+):
+    """Install the bundled FalseAlarm skill for an AI coding agent."""
+    from falsealarm.core.skill_installer import install_agent_skill
+
+    try:
+        installed = install_agent_skill(
+            target=target,
+            destination=destination,
+            force=force,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        typer.secho(f"[!] {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.secho(f"[+] FalseAlarm skill installed at {installed}", fg=typer.colors.GREEN)
 
 @app.command(name="scan")
 def run_scan(

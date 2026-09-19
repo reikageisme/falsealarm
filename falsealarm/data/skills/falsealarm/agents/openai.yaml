@@ -1,0 +1,5 @@
+interface:
+  display_name: "FalseAlarm"
+  short_description: "Operate and extend authorized FalseAlarm recon"
+  default_prompt: "Use $falsealarm to plan a scoped scan or make a repository change safely."
+

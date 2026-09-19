@@ -43,6 +43,7 @@ jobs:
       - name: Upload binary to the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: docs/releases/${{ github.ref_name }}.md
           files: engine-go/dirfuzz-engine-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   pypi:

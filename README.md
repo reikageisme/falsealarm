@@ -113,6 +113,7 @@ EOF
 * **YAML Configuration Profiles:** Save and reuse scan presets (`falsealarm scan -c profile.yaml -p stealth`).
 * **AI-Ready Triage:** Direct integration with LLMs (Gemini / Anthropic / OpenAI) to automatically parse scan results and prioritize high-impact vulnerabilities.
 * **SQLite State Tracking:** Non-blocking WAL-mode SQLite database with automatic retry timeouts for scan history and state persistence.
+* **Bundled AI Agent Skill:** Install maintained FalseAlarm operating and development guidance for Codex, Claude, or a project-local agent.
 
 ---
 
@@ -146,9 +147,24 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 ### Option 1 — From PyPI (recommended)
 
 ```bash
-pip install falsealarm
+pip install falsealarm==1.0.6
 falsealarm scan -u example.com -q
 ```
+
+Optional AI-agent skill installation:
+
+```bash
+# Codex user skill (default)
+falsealarm install-skill --target codex
+
+# Other supported destinations
+falsealarm install-skill --target claude
+falsealarm install-skill --target project
+```
+
+The skill is bundled in the Python package, but installation into an agent's
+home or project directory is explicit. Use `--force` to update an existing
+copy, or `--destination <path>` for a custom final skill directory.
 
 On Debian / Kali / Ubuntu, PEP 668 blocks a system-wide `pip install`
 (`externally-managed-environment`). Use **pipx** (best for a CLI tool) or a

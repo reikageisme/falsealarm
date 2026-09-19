@@ -1,32 +1,11 @@
 ---
 name: falsealarm
-description: Knowledge and commands for the FalseAlarm async web reconnaissance framework (Python + Go).
+description: Operate, extend, troubleshoot, or test the FalseAlarm Python/Go async web-reconnaissance framework. Use for scoped FalseAlarm scans, result interpretation, custom modules or vulnerability templates, CLI/pipeline changes, and the Go dirfuzz engine; not for generic security testing unrelated to FalseAlarm.
 ---
 
-# FalseAlarm Knowledge Base
+# FalseAlarm
 
-FalseAlarm is an Advanced Async Web Reconnaissance Framework combining a Python `asyncio` orchestrator with a high-performance Go (`fasthttp`) worker engine.
-
-## Core Architecture
-- **Language**: Python 3.10+ (Orchestrator) & Go 1.20+ (High-speed Fuzzing Engine)
-- **CLI Framework**: `typer` and `rich`
-- **Module System**: Auto-discovery plugin architecture. Custom modules are placed in `falsealarm/modules/` and must inherit from `BaseModule`.
-- **Concurrency**: `asyncio` and `aiohttp` for Python, `fasthttp` for Go.
-
-## Important Commands
-- **Install for Development**: 
-  ```bash
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install -e .
-  ```
-- **Compile Go Engine**: `python -m falsealarm build-engine`
-- **CLI Entry Point**: `falsealarm`
-  - *Comprehensive Scan*: `falsealarm scan -u <url> -A`
-  - *Targeted Scan (e.g. DNS + technology)*: `falsealarm scan -u <url> -m dns,tech`
-  - *High-Speed Directory Fuzzing*: `falsealarm scan -u <url>/FUZZ -m dirfuzz -t 100 -w common.txt`
-
-## Development Guidelines
-- Always use `asyncio` for new Python modules.
-- Ensure new modules inherit from `BaseModule`.
-- Utilize environment variables (via `.env`) for AI API keys (Gemini, OpenAI, Anthropic) for AI Triage integration.
+The canonical, distributable skill lives at
+[falsealarm/data/skills/falsealarm/SKILL.md](../../../falsealarm/data/skills/falsealarm/SKILL.md).
+Read that file completely and follow it for this task. Resolve its relative
+references from its own directory.
