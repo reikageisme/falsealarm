@@ -199,7 +199,7 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 ### Option 1 — From PyPI (recommended)
 
 ```bash
-pip install falsealarm==1.0.6
+pip install falsealarm==1.4.0
 falsealarm scan -u example.com -q
 ```
 

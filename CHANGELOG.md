@@ -4,7 +4,9 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-11-20
+
+Injection detection and out-of-band testing.
 
 ### Added
 - **`ssti` module** — server-side template injection detection. Injects
@@ -20,10 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   self-hosted one), substitutes `{{interactsh-url}}`, polls for DNS/HTTP
   callbacks and judges `interactsh_protocol`/`interactsh_request` matchers —
   making ~430 blind-SSRF/RCE/XXE templates runnable. Needs
-  `pip install falsealarm[oast]` (the `cryptography` package). OAST findings
+  `pip install 'falsealarm[oast]'` (the `cryptography` package). OAST findings
   are only reported on a real callback.
 - `ssti` and `nosqli` run on `--depth deep` and `insane`, and share the sqli
   parameter/form-discovery framework.
+
+## [1.3.0] - 2026-11-20
+
+SQL injection, authenticated and scoped scanning.
+
+### Added
 - **`sqli` module** — SQL injection detection across URL query parameters, GET
   and POST form fields, and **login auth-bypass** (`' OR '1'='1`). Four
   techniques: error-based (DBMS signatures), boolean-based blind
@@ -44,6 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   output per target).
 - Response bodies are capped (`max_body`, default 2 MB) so a huge or streamed
   response cannot exhaust memory.
+
+### Fixed
+- `echo host | falsealarm --pipe …` failed validation ("Target … must be
+  specified") because stdin was read after the config was validated.
+
+## [1.2.0] - 2026-11-20
+
+Live terminal UI, shareable reports, CI gate.
+
+### Added
 - **Live terminal dashboard.** Current module and target, progress bar
   (templates done/total), live req/s, HTTP status mix and findings by
   severity. Disabled automatically without a TTY, or with `--no-progress`.
@@ -58,8 +76,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   above the threshold.
 - `--no-banner`, `--no-progress`.
 - Unified findings model (`falsealarm.core.findings`) shared by the terminal
-  summary, Markdown report, HTML report and the CI gate; now also covers open
+  summary, Markdown report, HTML report and the CI gate; also covers open
   redirects, GraphQL introspection and invalid TLS certificates.
+
+### Changed
+- Colours are only forced when `FORCE_COLOR` is set; redirected output and CI
+  logs are plain text (`NO_COLOR` is honoured).
+
+## [1.1.0] - 2026-11-20
+
+Nuclei-compatible template engine.
+
+### Added
 - **Nuclei-compatible `vulnscan`.** The template engine now runs nuclei HTTP
   templates: `http:`/`requests:` blocks, `path` lists and `raw` requests,
   `payloads` with batteringram/pitchfork/clusterbomb attacks, `variables`,
@@ -80,8 +108,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (CVE/CWE/CVSS), `remediation`, `matcher_name` and the triggering `payload`.
 
 ### Changed
-- Colours are only forced when `FORCE_COLOR` is set; redirected output and CI
-  logs are plain text (`NO_COLOR` is honoured).
 - Template loading runs in a worker thread so the event loop and dashboard stay
   responsive.
 - Identical GET requests issued by different templates are sent once per
@@ -90,14 +116,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Template requests are sent byte-for-byte (`%2e`, `..` are no longer
   normalised away by yarl), so path-traversal templates work.
 
-### Fixed
-- `echo host | falsealarm --pipe …` failed validation ("Target … must be
-  specified") because stdin was read after the config was validated.
-
 ### Notes
-- Templates needing interactsh (OAST), `flow:`, `self-contained`, headless,
-  DNS/TCP/SSL/code/javascript protocols or xpath are skipped and reported,
-  never half-executed. Against nuclei-templates this is ~77% runnable.
+- Templates needing `flow:`, `self-contained`, headless, DNS/TCP/SSL/code/
+  javascript protocols or xpath are skipped and reported, never half-executed.
+  With `--oast`, interactsh templates are runnable; overall ~81% of
+  nuclei-templates run.
 
 ## [1.0.6] - 2026-09-19
 
