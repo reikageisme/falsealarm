@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Live terminal dashboard.** Current module and target, progress bar
+  (templates done/total), live req/s, HTTP status mix and findings by
+  severity. Disabled automatically without a TTY, or with `--no-progress`.
+- **Findings stream** as one coloured, copy-friendly line each (nuclei style),
+  and every scan ends with a **summary panel** plus a severity-sorted findings
+  table. Raw dict dumps are replaced by curated per-module views that never
+  truncate URLs.
+- **`--html report.html`**: self-contained, offline HTML report with severity
+  cards, filter chips and search. All target-controlled data is escaped and
+  the page ships a strict Content-Security-Policy.
+- **`--fail-on <severity>`**: CI gate, exits with code 2 on findings at or
+  above the threshold.
+- `--no-banner`, `--no-progress`.
+- Unified findings model (`falsealarm.core.findings`) shared by the terminal
+  summary, Markdown report, HTML report and the CI gate; now also covers open
+  redirects, GraphQL introspection and invalid TLS certificates.
 - **Nuclei-compatible `vulnscan`.** The template engine now runs nuclei HTTP
   templates: `http:`/`requests:` blocks, `path` lists and `raw` requests,
   `payloads` with batteringram/pitchfork/clusterbomb attacks, `variables`,
@@ -27,11 +43,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (CVE/CWE/CVSS), `remediation`, `matcher_name` and the triggering `payload`.
 
 ### Changed
+- Colours are only forced when `FORCE_COLOR` is set; redirected output and CI
+  logs are plain text (`NO_COLOR` is honoured).
+- Template loading runs in a worker thread so the event loop and dashboard stay
+  responsive.
 - Identical GET requests issued by different templates are sent once per
   target and shared (response cache), which removes most of the duplicate
   traffic when running thousands of templates.
 - Template requests are sent byte-for-byte (`%2e`, `..` are no longer
   normalised away by yarl), so path-traversal templates work.
+
+### Fixed
+- `echo host | falsealarm --pipe …` failed validation ("Target … must be
+  specified") because stdin was read after the config was validated.
 
 ### Notes
 - Templates needing interactsh (OAST), `flow:`, `self-contained`, headless,

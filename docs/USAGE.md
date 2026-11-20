@@ -109,7 +109,29 @@ The same keys (`templates`, `template_tags`, `exclude_tags`, `severity`,
 
 ---
 
-## Workflow 5 — Continuous monitoring
+## Workflow 5 — Reports & CI gate
+
+```bash
+# Shareable single-file HTML report + raw JSON
+falsealarm scan -u https://example.com --html report.html -o results.json -f json
+
+# Fail the pipeline (exit code 2) on any high or critical finding
+falsealarm scan -u "$STAGING_URL" -m httpprobe,vulnscan --fail-on high -f sarif -o falsealarm.sarif
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--html FILE` | Self-contained HTML report (offline, escaped, filterable). |
+| `--fail-on SEV` | Exit `2` if a finding ≥ `SEV` (`info`…`critical`) exists. |
+| `--no-progress` | Disable the live dashboard (plain scrolling output). |
+| `--no-banner` | Skip the ASCII banner. |
+
+Terminal output is plain text automatically when stdout is not a TTY; set
+`FORCE_COLOR=1` to keep colours, `NO_COLOR=1` to drop them.
+
+---
+
+## Workflow 6 — Continuous monitoring
 
 FalseAlarm can alert only on **what changed** since the last scan — new
 subdomains, new open ports, new findings. Pair `--diff` with `--notify`:

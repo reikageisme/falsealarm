@@ -21,6 +21,29 @@ from falsealarm.core.proxy import ProxyManager
 from falsealarm.core.rate_limiter import TokenBucketRateLimiter
 
 
+class EngineStats:
+    """Live counters for the terminal dashboard and the final summary."""
+
+    __slots__ = ("requests", "errors", "statuses", "bytes", "started")
+
+    def __init__(self) -> None:
+        from collections import Counter
+
+        self.requests = 0
+        self.errors = 0
+        self.statuses: Counter = Counter()
+        self.bytes = 0
+        self.started = time.monotonic()
+
+    @property
+    def elapsed(self) -> float:
+        return max(time.monotonic() - self.started, 1e-6)
+
+    @property
+    def rps(self) -> float:
+        return self.requests / self.elapsed
+
+
 class AsyncEngine:
     """Asynchronous HTTP engine with connection pooling and rate limiting.
 
@@ -44,6 +67,7 @@ class AsyncEngine:
         self._fingerprint: RequestFingerprint | None = None
         self._proxy_manager: ProxyManager | None = None
         self._started = False
+        self.stats = EngineStats()
 
     async def start(self) -> None:
         """Initialize the HTTP session and all sub-components.
@@ -180,6 +204,7 @@ class AsyncEngine:
                 target_url = yarl.URL(url, encoded=True) if req_kwargs.pop("raw_url", False) else url
 
                 # Send request
+                self.stats.requests += 1
                 start_time = time.monotonic()
                 async with self._session.request(
                     method,
@@ -227,6 +252,9 @@ class AsyncEngine:
                         }
                     )
 
+                    self.stats.statuses[response.status] += 1
+                    self.stats.bytes += len(body)
+
                     # Report success to rate limiter
                     if self._rate_limiter:
                         await self._rate_limiter.report_status(success=True, status_code=response.status)
@@ -243,6 +271,7 @@ class AsyncEngine:
                     await asyncio.sleep(backoff_times[attempt])
                     continue
                 else:
+                    self.stats.errors += 1
                     if isinstance(e, asyncio.TimeoutError):
                         result["error"] = "timeout"
                     elif isinstance(e, aiohttp.ClientConnectorError):
@@ -251,6 +280,7 @@ class AsyncEngine:
                         result["error"] = f"client_error: {e}"
                     break
             except Exception as e:
+                self.stats.errors += 1
                 if self._rate_limiter:
                     await self._rate_limiter.report_status(success=False)
                 result["error"] = f"unknown_error: {type(e).__name__}: {e}"

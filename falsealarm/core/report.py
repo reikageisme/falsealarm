@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from falsealarm.core.findings import collect_findings
 from falsealarm.core.utils import canonical_url, get_timestamp
 
 
@@ -45,43 +46,20 @@ class PentestReport:
         historical = cls._items(results, "wayback")
         js_results = cls._items(results, "js_analysis")
         technologies = cls._items(results, "tech")
-        vulnerabilities = cls._items(results, "vulnscan")
-        cors = cls._items(results, "cors")
-        ssl_items = cls._items(results, "ssl")
 
         endpoints: set[str] = set()
         for item in directories + historical:
             if item.get("url"):
                 endpoints.add(canonical_url(str(item["url"])))
-        exposed_secrets = []
         for item in js_results:
             endpoints.update(canonical_url(str(value)) for value in item.get("endpoints", []) if value)
-            exposed_secrets.extend(item.get("secrets", []))
 
         tech_names = []
         for item in technologies:
             tech_names.extend(str(t.get("name")) for t in item.get("technologies", []) if t.get("name"))
 
-        findings: list[tuple[str, str, str]] = []
-        for item in vulnerabilities:
-            findings.append((str(item.get("severity", "info")), str(item.get("name", "Finding")), str(item.get("url", ""))))
-        for item in cors:
-            if item.get("type") == "cors_vulnerability":
-                findings.append(("high", str(item.get("vulnerability", "CORS misconfiguration")), str(item.get("target", ""))))
-        for item in ssl_items:
-            missing = item.get("missing_headers", [])
-            if item.get("type") == "security_headers" and missing:
-                findings.append(("low", f"Missing security headers: {', '.join(missing)}", str(item.get("target", ""))))
-        for secret in exposed_secrets:
-            findings.append(("high", f"Potential client-side secret: {secret.get('type', 'unknown')}", "JavaScript asset"))
-
-        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-        findings = list(dict.fromkeys(
-            (severity, name, canonical_url(evidence) if "://" in evidence else evidence)
-            for severity, name, evidence in findings
-        ))
-        findings.sort(key=lambda finding: severity_order.get(finding[0].lower(), 5))
-        severity_counts = Counter(severity.lower() for severity, _, _ in findings)
+        findings = collect_findings(results)
+        severity_counts = Counter(f.severity for f in findings)
 
         lines = [
             f"# FalseAlarm pre-pentest report — {target}",
@@ -105,11 +83,14 @@ class PentestReport:
             "",
         ]
         if findings:
-            lines.extend(["| Severity | Finding | Evidence |", "|---|---|---|"])
-            for severity, name, evidence in findings:
-                safe_name = name.replace("|", "\\|")
-                safe_evidence = evidence.replace("|", "\\|")
-                lines.append(f"| {severity.upper()} | {safe_name} | {safe_evidence} |")
+            lines.extend(["| Severity | Finding | Location | Evidence |", "|---|---|---|---|"])
+            for f in findings:
+                def esc(text: str) -> str:
+                    return text.replace("|", "\\|").replace("\n", " ")
+                evidence = ", ".join(f.evidence[:3])
+                if f.detail:
+                    evidence = f"{f.detail}; {evidence}" if evidence else f.detail
+                lines.append(f"| {f.severity.upper()} | {esc(f.title)} | {esc(f.location)} | {esc(evidence)} |")
         else:
             lines.append("No automated vulnerability finding was produced. This does not replace manual testing.")
 

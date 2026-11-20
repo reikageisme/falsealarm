@@ -62,6 +62,7 @@ class ScanScheduler:
         self.logger = logger
         self._modules: dict[str, type] = {}
         self._scan_id: str | None = None
+        self.duration = 0.0
         self._discover_modules()
 
     def _discover_modules(self) -> None:
@@ -174,20 +175,14 @@ class ScanScheduler:
             self.config.target, config_json
         )
 
-        self.logger.info(
-            f"Starting scan: [bold]{self.config.target}[/bold] (Profile: {self.config.depth})"
-        )
-        self.logger.info(
-            f"├── Allowed Modules: [cyan]{', '.join(allowed_modules)}[/cyan]"
-        )
-        self.logger.info(
-            f"├── Rate: {self.config.rate} req/s | "
-            f"Threads: {self.config.threads} | "
-            f"Timeout: {self.config.timeout}s"
-        )
-        self.logger.info(
-            f"└── Scan ID: [bold]{self._scan_id}[/bold]"
-        )
+        if not self.logger.silent:
+            from falsealarm.core.ui import scan_header
+
+            scan_header(
+                self.logger.console, self.config.target, allowed_modules, self.config,
+                self._scan_id, self.config.waf_name if self.config.waf_detected else None,
+            )
+        self.logger.start_dashboard(lambda: getattr(self.engine, "stats", None))
 
         all_results = {}
         total_start = time.time()
@@ -203,64 +198,68 @@ class ScanScheduler:
         executed_nodes = set() # (module_name, target)
         interrupted = False
 
-        while queue:
-            current_module, current_target = queue.pop(0)
+        try:
+            while queue:
+                current_module, current_target = queue.pop(0)
 
-            current_target = canonical_url(current_target)
-            node_id = f"{current_module}:{current_target}"
-            if node_id in executed_nodes:
-                continue
-            executed_nodes.add(node_id)
+                current_target = canonical_url(current_target)
+                node_id = f"{current_module}:{current_target}"
+                if node_id in executed_nodes:
+                    continue
+                executed_nodes.add(node_id)
+                self.logger.stage(current_module, current_target)
 
-            try:
-                # Temporarily override target config for run_module
-                original_target = self.config.target
-                self.config.target = current_target
                 try:
-                    result = await self.run_module(current_module)
-                finally:
-                    self.config.target = original_target
+                    # Temporarily override target config for run_module
+                    original_target = self.config.target
+                    self.config.target = current_target
+                    try:
+                        result = await self.run_module(current_module)
+                    finally:
+                        self.config.target = original_target
 
-                if result:
-                    # Store results. We aggregate if multiple targets run the same module.
+                    if result:
+                        # Store results. We aggregate if multiple targets run the same module.
+                        if current_module not in all_results:
+                            all_results[current_module] = result.to_dict()
+                        else:
+                            all_results[current_module]["data"].extend(result.data)
+
+                        # Extract new targets for downstream
+                        new_targets = self._extract_downstream_targets(current_module, result.data)
+                        if not new_targets and current_module not in {"subdomain", "portscan", "httpprobe"}:
+                            # Fallback to the same target if module doesn't generate new ones
+                            new_targets = [current_target]
+
+                        downstreams = pipeline.get_downstream(current_module)
+                        for ds in downstreams:
+                            for nt in new_targets:
+                                queue.append((ds, nt))
+
+                except KeyboardInterrupt:
+                    self.logger.warning("Scan interrupted by user.")
+                    await self.db.update_scan_status(self._scan_id, "interrupted")
+                    interrupted = True
+                    break
+                except Exception as e:
+                    self.logger.error(
+                        f"Module '{current_module}' failed on {current_target}: {e}"
+                    )
                     if current_module not in all_results:
-                        all_results[current_module] = result.to_dict()
-                    else:
-                        all_results[current_module]["data"].extend(result.data)
-
-                    # Extract new targets for downstream
-                    new_targets = self._extract_downstream_targets(current_module, result.data)
-                    if not new_targets and current_module not in {"subdomain", "portscan", "httpprobe"}:
-                        # Fallback to the same target if module doesn't generate new ones
-                        new_targets = [current_target]
-
-                    downstreams = pipeline.get_downstream(current_module)
-                    for ds in downstreams:
-                        for nt in new_targets:
-                            queue.append((ds, nt))
-
-            except KeyboardInterrupt:
-                self.logger.warning("Scan interrupted by user.")
-                await self.db.update_scan_status(self._scan_id, "interrupted")
-                interrupted = True
-                break
-            except Exception as e:
-                self.logger.error(
-                    f"Module '{current_module}' failed on {current_target}: {e}"
-                )
-                if current_module not in all_results:
-                    all_results[current_module] = {"error": str(e)}
+                        all_results[current_module] = {"error": str(e)}
+        finally:
+            self.logger.stop_dashboard()
 
         total_duration = round(time.time() - total_start, 2)
+        self.duration = total_duration
 
         # Update scan status
         if not interrupted:
             await self.db.update_scan_status(self._scan_id, "completed")
 
-        self.logger.success(
-            f"Scan complete in {total_duration}s | "
-            f"Scan ID: [bold]{self._scan_id}[/bold]"
-        )
+        if getattr(self.logger, "pipe_mode", False):
+            # Normal runs end with the summary panel; pipe mode has no panel.
+            self.logger.success(f"Scan complete in {total_duration}s | Scan ID: [bold]{self._scan_id}[/bold]")
 
         if self.config.ai_triage:
             self.logger.module_header("AI Triage Analysis")

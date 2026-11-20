@@ -10,6 +10,7 @@ import asyncio
 import os
 from typing import Any
 
+from falsealarm.core.findings import finding_from_vuln
 from falsealarm.core.templates import TemplateExecutor, TemplateFilter, load_templates
 from falsealarm.core.templates.matchers import build_response_context, extract_all, match_all
 from falsealarm.core.utils import get_data_path
@@ -85,7 +86,10 @@ class VulnScanModule(BaseModule):
             target = f"http://{target}"
         target = target.rstrip("/")
 
-        report = load_for_config(self.config)
+        # Parsing thousands of YAML files is CPU-bound: keep the event loop
+        # (and the live dashboard) responsive by doing it in a worker thread.
+        self.logger.task("templates loading", 0)
+        report = await asyncio.to_thread(load_for_config, self.config)
         stats["templates_loaded"] = report.loaded
         stats["templates_unsupported"] = sum(report.unsupported.values())
         stats["templates_invalid"] = len(report.invalid)
@@ -99,21 +103,22 @@ class VulnScanModule(BaseModule):
 
         executor = TemplateExecutor(self.engine, concurrency=self.config.threads)
         sem = asyncio.Semaphore(max(1, self.config.threads))
+        self.logger.task("templates", report.loaded)
 
         async def run_one(template):
             async with sem:
                 try:
-                    return await executor.run(template, target)
+                    found = await executor.run(template, target)
                 except Exception as exc:  # one broken template must not abort the scan
                     self.logger.debug(f"Template {template.id} failed: {exc}")
-                    return []
-
-        for findings in await asyncio.gather(*(run_one(t) for t in report.templates)):
-            for item in findings:
+                    found = []
+            # Stream findings as soon as each template finishes.
+            for item in found:
                 results.append(item)
-                self.logger.success(
-                    f"[{item['severity'].upper()}] {item['name']} ({item['vuln_id']}) at {item['url']}"
-                )
+                self.logger.finding(finding_from_vuln(item))
+            self.logger.advance()
+
+        await asyncio.gather(*(run_one(t) for t in report.templates))
 
         stats["vulns_found"] = len(results)
         stats["requests_sent"] = executor.requests_sent

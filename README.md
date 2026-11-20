@@ -51,31 +51,30 @@ Accordingly, Human-In-The-Loop (HITL) control is a core design principle of Fals
 
 ## Quickstart
 
-To launch FalseAlarm after installation, simply type `falsealarm` or run a targeted scan from your CLI:
-
-```text
-┌──(.venv)(tanh㉿kali)-[~/falsealarm]
-└─$ falsealarm scan -u http://example.com/FUZZ -m dirfuzz
-
-╭───────────────────  Layer 7 Reconnaissance Engine  ───────────────────╮
-│ ___________        .__             _____  .__                         │
-│ \_   _____/____    |  |   ______ _/ ____\ |  | _____ _______  _____   │
-│  |    __) \__  \   |  |  /  ___/ \   __\  |  | \__  \\_  __ \/     \  │
-│  |     \   / __ \_ |  |__\___ \   |  |    |  |__/ __ \|  | \/  Y Y  \ │
-│  \___  /  (____  / |____/____  >  |__|    |____(____  /__|  |__|_|  / │
-│      \/        \/            \/                     \/            \/  │
-│                                                                       │
-│ v1.0.0 | Codename: Phantom Strike                                     │
-│ Asynchronous I/O Engine Active | Python 3.14.6                        │
-│ Developed by reikageisme                                              │
-╰─────────────────────────  Deep InfoSec Lab  ──────────────────────────╯
-⚠ Legal: Only use on systems you have permission to test.
-
-[20:44:18] [*] Starting scan: http://example.com/FUZZ
-[20:44:18] [*] Engaging Go-based High Speed Fuzzing Engine...
-[20:44:19] [+] Found: http://example.com/js [Status: 301, Size: 222]
-[20:44:20] [+] Found: http://example.com/robots.txt [Status: 301, Size: 230]
+```bash
+pipx install falsealarm
+falsealarm templates update          # one-time: community nuclei templates
+falsealarm scan -u https://target.example -T ~/.falsealarm/nuclei-templates/http \
+  --tags cve,exposure --html report.html
 ```
+
+<p align="center">
+  <img src="assets/demo.svg" alt="FalseAlarm terminal output: findings streamed as they are confirmed, then a severity summary" width="900">
+</p>
+
+While a scan runs, a live status bar shows the current module, a progress bar
+(e.g. `1,129/2,052 templates`), live req/s, HTTP status mix and findings by
+severity. Findings print the moment they are confirmed; the run ends with a
+summary panel and a severity-sorted findings table. Without a TTY (CI, `> log`)
+or with `--no-progress`, output is a plain scrolling log with no ANSI codes.
+
+<p align="center">
+  <img src="assets/report.png" alt="Self-contained HTML report with severity cards and filterable findings" width="900">
+</p>
+
+`--html report.html` writes a single self-contained file (no external assets,
+works offline, attacker-controlled values escaped, strict CSP) that you can
+attach to a ticket or send to a client.
 
 ---
 
@@ -107,6 +106,12 @@ EOF
 * **Proxy Orchestration:** Native support for chained HTTP and SOCKS5 proxies (e.g., Tor network) with automatic node health checks.
 * **Dynamic Fingerprinting:** Automated rotation of `User-Agent` and HTTP headers (Accept, Accept-Language, Accept-Encoding) to blend into legitimate traffic profiles. The Go fuzzing engine now honours the same proxy, rate limit, and User-Agent as the Python core.
 * **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
+
+### Reporting & CI
+* **Live terminal dashboard:** progress, real-time req/s, status-code mix and findings by severity; nuclei-style one-line findings you can copy straight into a report.
+* **Shareable HTML report** (`--html`), Markdown handoff (`--report`), SARIF for GitHub code scanning, JSON/JSONL/CSV.
+* **CI gate:** `--fail-on high` exits with code `2` when a finding at or above that severity is found.
+* **Unix-friendly:** `--pipe` streams NDJSON on stdout (logs on stderr); honours `NO_COLOR` / `FORCE_COLOR`.
 
 ### Intelligence & State Management
 * **Multi-Target & CIDR Support:** Scan individual URLs (`-u`), input lists (`-iL targets.txt`), or full IP network blocks (`192.168.1.0/24`).
@@ -303,6 +308,20 @@ falsealarm scan -u http://example.com/FUZZ -m dirfuzz -t 100 -w common.txt
 # Recursive content discovery (dig into discovered directories)
 falsealarm scan -u http://example.com -m dirfuzz --recursion-depth 2
 ```
+
+### CI/CD Security Gate
+
+```yaml
+# .github/workflows/falsealarm.yml
+- run: pipx install falsealarm && falsealarm templates update
+- run: |
+    falsealarm scan -u "$STAGING_URL" -m httpprobe,vulnscan \
+      -T ~/.falsealarm/nuclei-templates/http --tags exposure,misconfig \
+      -o falsealarm.sarif -f sarif --html falsealarm.html --fail-on high
+```
+
+The step fails (exit code `2`) on any high/critical finding; upload the SARIF
+file to GitHub code scanning and the HTML file as a build artifact.
 
 ### Pipe Mode & Tool Chaining (NDJSON)
 FalseAlarm reads targets from stdin and streams NDJSON results to stdout with

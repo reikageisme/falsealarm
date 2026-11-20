@@ -175,11 +175,19 @@ def run_scan(
     severity: Optional[str] = typer.Option(None, "-s", "--severity", help="vulnscan: only run these severities (info,low,medium,high,critical)"),
     template_id: Optional[str] = typer.Option(None, "--template-id", help="vulnscan: only run these template IDs (comma-separated)"),
     exclude_id: Optional[str] = typer.Option(None, "--exclude-id", help="vulnscan: skip these template IDs (comma-separated)"),
+    html: Optional[str] = typer.Option(None, "--html", help="Write a self-contained, shareable HTML report"),
+    fail_on: Optional[str] = typer.Option(None, "--fail-on", help="Exit with code 2 if a finding at/above this severity is found (CI gate)"),
+    no_banner: bool = typer.Option(False, "--no-banner", help="Skip the ASCII banner"),
+    no_progress: bool = typer.Option(False, "--no-progress", help="Disable the live dashboard (plain scrolling log)"),
     version: Optional[bool] = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version"),
 ):
     """
     Run a security scan against a target.
     """
+    if fail_on and fail_on.lower() not in {"info", "low", "medium", "high", "critical"}:
+        raise typer.BadParameter("must be one of info, low, medium, high, critical", param_hint="--fail-on")
+    ui_opts = {"html": html, "fail_on": fail_on.lower() if fail_on else None, "no_banner": no_banner,
+               "no_progress": no_progress}
     template_opts = {
         "templates": _csv(templates),
         "template_tags": _csv(tags),
@@ -199,7 +207,7 @@ def run_scan(
                 resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate,
                 notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token,
                 telegram_chat_id=telegram_chat_id, pipe=pipe, recursion_depth=recursion_depth,
-                template_opts=template_opts,
+                template_opts=template_opts, ui_opts=ui_opts,
             )
         )
     except KeyboardInterrupt:
@@ -216,17 +224,21 @@ async def _run_scan(
     adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None,
     telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
     pipe: bool = False, recursion_depth: int = 0, template_opts: Optional[dict] = None,
+    ui_opts: Optional[dict] = None,
 ):
     from falsealarm.core.utils import sanitize_target
 
     # Pipe mode keeps stdout machine-readable: logs/banner go to stderr and
     # results are streamed as NDJSON to stdout for chaining with other tools.
     pipe_mode = pipe or output == "-"
-    logger = FalseAlarmLogger(silent=silent, verbose=verbose, stderr=pipe_mode)
+    logger = FalseAlarmLogger(silent=silent, verbose=verbose, stderr=pipe_mode,
+                              live=not (ui_opts or {}).get("no_progress"))
 
+    ui_opts = ui_opts or {}
     if not silent and not pipe_mode:
-        logger.banner()
-        typer.secho("⚠ Legal: Only use on systems you have permission to test.\n", fg=typer.colors.YELLOW)
+        if not ui_opts.get("no_banner"):
+            logger.banner()
+        logger.console.print("[yellow]⚠ Only scan systems you are authorised to test.[/yellow]\n")
 
     modules_list = []
     if module:
@@ -303,6 +315,17 @@ async def _run_scan(
         if value:
             setattr(config, key, value)
 
+    # Ingest targets from stdin when piped and none were supplied explicitly.
+    # This must happen before validate(), which requires at least one target.
+    if not config.target and not config.targets and not config.targets_file and not config.resume:
+        if pipe or not sys.stdin.isatty():
+            stdin_targets = [
+                sanitize_target(line.strip())
+                for line in sys.stdin
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+            config.targets = [t for t in stdin_targets if t]
+
     try:
         config.validate()
     except ValueError as e:
@@ -320,16 +343,6 @@ async def _run_scan(
         except Exception as e:
             typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
             sys.exit(1)
-
-    # Ingest targets from stdin when piped and none were supplied explicitly.
-    if not config.target and not config.targets:
-        if pipe or not sys.stdin.isatty():
-            stdin_targets = [
-                sanitize_target(line.strip())
-                for line in sys.stdin
-                if line.strip() and not line.lstrip().startswith("#")
-            ]
-            config.targets = [t for t in stdin_targets if t]
 
     # Normalize target lists & expand CIDR notation if present
     import ipaddress
@@ -374,6 +387,7 @@ async def _run_scan(
             await db.close()
         return
 
+    gate_failed = False
     for current_target in targets:
         if not current_target:
             continue
@@ -384,9 +398,6 @@ async def _run_scan(
         # Create a deep copy of config for this specific target
         target_config = ScanConfig.from_dict(config.to_dict())
         target_config.target = current_target
-
-        if not silent and len(targets) == 1:
-            logger.scan_config(target_config)
 
         engine = AsyncEngine(target_config)
 
@@ -431,13 +442,15 @@ async def _run_scan(
             elif not silent and target_config.diff:
                 logger.info("No previous completed scan found for this target — nothing to diff against yet.")
 
-        if not silent and not pipe_mode:
-            for mod_name, mod_data in scan_results.items():
-                data = mod_data.get("data", [])
-                if data:
-                    columns = list(data[0].keys())
-                    rows = [[str(item.get(col, "")) for col in columns] for item in data]
-                    logger.table(f"{mod_name.upper()} Results ({current_target})", columns, rows)
+        saved: list[str] = []
+
+        def _per_target(path: str, default_ext: str) -> str:
+            # Multiple targets: suffix the file name so targets don't overwrite each other.
+            if len(targets) <= 1:
+                return path
+            base, ext = os.path.splitext(path)
+            safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
+            return f"{base}_{safe_target}{ext or default_ext}"
 
         # Pipe mode: stream NDJSON to stdout for chaining with other tools.
         if pipe_mode:
@@ -445,31 +458,50 @@ async def _run_scan(
             await OutputManager.export(scan_results, "-", stdout_fmt)
 
         if output and output != "-":
-            # If multiple targets, append target name to output file to avoid overwrite
-            final_output = output
-            if len(targets) > 1:
-                base, ext = os.path.splitext(output)
-                safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
-                final_output = f"{base}_{safe_target}{ext}"
-
+            final_output = _per_target(output, "")
             await OutputManager.export(scan_results, final_output, format_type)
-            if not silent:
-                logger.success(f"Results for {current_target} saved to {final_output}")
+            saved.append(final_output)
 
         if report:
             from falsealarm.core.report import PentestReport
-            final_report = report
-            if len(targets) > 1:
-                base, ext = os.path.splitext(report)
-                safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
-                final_report = f"{base}_{safe_target}{ext or '.md'}"
+            final_report = _per_target(report, ".md")
             await PentestReport.export(current_target, scan_results, final_report)
-            if not silent:
-                logger.success(f"Pentest report for {current_target} saved to {final_report}")
+            saved.append(final_report)
+
+        if ui_opts.get("html"):
+            from falsealarm.core.html_report import HTMLReport
+            final_html = _per_target(ui_opts["html"], ".html")
+            HTMLReport.export(current_target, scan_results, final_html, stats=engine.stats,
+                              duration=scheduler.duration, scan_id=scheduler.scan_id)
+            saved.append(final_html)
+
+        from falsealarm.core.findings import collect_findings, severity_at_least
+
+        if not silent and not pipe_mode:
+            from falsealarm.core.ui import print_module_views, print_summary
+
+            logger.console.print()
+            print_module_views(logger.console, scan_results)
+            findings = print_summary(logger.console, current_target, scan_results, engine.stats, saved,
+                                     scheduler.duration, scheduler.scan_id)
+        else:
+            findings = collect_findings(scan_results)
+            for path in saved:
+                logger.success(f"Saved {path}")
+
+        threshold = ui_opts.get("fail_on")
+        if threshold and any(severity_at_least(f.severity, threshold) for f in findings):
+            gate_failed = True
 
         await engine.close()
 
     await db.close()
+
+    if gate_failed:
+        threshold = (ui_opts or {}).get("fail_on")
+        if not silent:
+            logger.console.print(f"[bold red]✗ --fail-on {threshold}: findings at or above '{threshold}' severity.[/bold red]")
+        raise typer.Exit(2)
 
 def _csv(value: Optional[str]) -> list[str]:
     return [v.strip() for v in (value or "").split(",") if v.strip()]

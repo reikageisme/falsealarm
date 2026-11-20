@@ -5,6 +5,7 @@ Provides colored, formatted console output using the Rich library.
 Handles Windows encoding issues by forcing UTF-8 output.
 """
 
+import os
 import sys
 from datetime import datetime
 from typing import Any
@@ -36,7 +37,11 @@ def _make_console(silent: bool = False, stderr: bool = False) -> Console:
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, OSError):
             pass
-    return Console(quiet=silent, force_terminal=True, stderr=stderr)
+    # Only force ANSI when asked to (FORCE_COLOR) — otherwise let Rich detect
+    # a real terminal so redirected output and CI logs stay plain text.
+    # NO_COLOR is honoured by Rich automatically.
+    force = True if os.environ.get("FORCE_COLOR") else None
+    return Console(quiet=silent, force_terminal=force, stderr=stderr)
 
 
 class FalseAlarmLogger:
@@ -50,10 +55,52 @@ class FalseAlarmLogger:
         verbose: If True, show debug messages.
     """
 
-    def __init__(self, silent: bool = False, verbose: bool = False, stderr: bool = False):
+    def __init__(self, silent: bool = False, verbose: bool = False, stderr: bool = False, live: bool = True):
         self.silent = silent
         self.verbose = verbose
         self.console = _make_console(silent, stderr=stderr)
+        self.interactive = live and self.console.is_terminal and not silent and not stderr
+        self.pipe_mode = stderr  # logs on stderr, machine output on stdout
+        self.dashboard: Any = None  # ScanDashboard while a scan is running (TTY only)
+
+    # ------------------------------------------------------------------ #
+    # Live dashboard hooks (no-ops when not attached / not a TTY)
+    # ------------------------------------------------------------------ #
+    def start_dashboard(self, stats_source=None) -> None:
+        if not self.interactive or self.dashboard is not None:
+            return
+        from falsealarm.core.ui import ScanDashboard
+
+        self.dashboard = ScanDashboard(self.console, stats_source)
+        self.dashboard.start()
+
+    def stop_dashboard(self) -> None:
+        if self.dashboard is not None:
+            self.dashboard.stop()
+            self.dashboard = None
+
+    def stage(self, name: str, target: str = "") -> None:
+        if self.dashboard is not None:
+            self.dashboard.set_stage(name, target)
+
+    def task(self, label: str, total: int) -> None:
+        """Declare the size of the current unit of work (templates, words …)."""
+        if self.dashboard is not None:
+            self.dashboard.set_task(label, total)
+
+    def advance(self, n: int = 1) -> None:
+        if self.dashboard is not None:
+            self.dashboard.advance(n)
+
+    def finding(self, finding) -> None:
+        """Print a confirmed finding as one coloured, copy-friendly line."""
+        if self.dashboard is not None:
+            self.dashboard.add_finding(finding.severity)
+        if self.silent:
+            return
+        from falsealarm.core.ui import finding_line
+
+        self.console.print(finding_line(finding), soft_wrap=True)
 
     def _timestamp(self) -> str:
         """Return formatted timestamp."""

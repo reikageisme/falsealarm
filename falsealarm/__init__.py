@@ -63,10 +63,13 @@ def print_banner(console=None, show_help=False) -> None:
             [bold yellow]# 4. Stealth & High-Speed Fuzzing[/bold yellow]
             falsealarm scan -u example.com -A -r 15 --proxy socks5://127.0.0.1:9050
 
-            [bold yellow]# 5. Load scan parameters from a YAML profile[/bold yellow]
-            falsealarm scan -c profile.yaml -p stealth
+            [bold yellow]# 5. Nuclei templates (run `falsealarm templates update` once)[/bold yellow]
+            falsealarm scan -u example.com -m vulnscan -T ~/.falsealarm/nuclei-templates/http -s high,critical
 
-            [bold yellow]# 6. AI Triage Integration[/bold yellow]
+            [bold yellow]# 6. Shareable report + CI gate (exit 2 on high/critical)[/bold yellow]
+            falsealarm scan -u example.com --html report.html --fail-on high
+
+            [bold yellow]# 7. AI Triage Integration[/bold yellow]
             falsealarm scan -u example.com -A --ai-triage
         """).strip('\n')
 
