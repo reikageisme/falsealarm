@@ -67,9 +67,10 @@ def load_for_config(config):
         ids=getattr(config, "template_ids", None),
         exclude_ids=getattr(config, "exclude_template_ids", None),
     )
-    key = (tuple(paths), repr(tfilter))
+    allow_oast = bool(getattr(config, "oast", False))
+    key = (tuple(paths), repr(tfilter), allow_oast)
     if key not in _TEMPLATE_CACHE:
-        _TEMPLATE_CACHE[key] = load_templates(paths, tfilter)
+        _TEMPLATE_CACHE[key] = load_templates(paths, tfilter, allow_oast=allow_oast)
     return _TEMPLATE_CACHE[key]
 
 
@@ -101,7 +102,11 @@ class VulnScanModule(BaseModule):
         self.logger.info(f"Templates: {report.summary()}")
         self.logger.info(f"Running {report.loaded} templates against {target}...")
 
-        executor = TemplateExecutor(self.engine, concurrency=self.config.threads)
+        # Out-of-band testing: register an interactsh session so blind
+        # SSRF/RCE/XXE templates (that need {{interactsh-url}}) can be judged.
+        oast_session = await self._maybe_start_oast(report)
+
+        executor = TemplateExecutor(self.engine, concurrency=self.config.threads, oast=oast_session)
         sem = asyncio.Semaphore(max(1, self.config.threads))
         self.logger.task("templates", report.loaded)
 
@@ -120,8 +125,41 @@ class VulnScanModule(BaseModule):
 
         await asyncio.gather(*(run_one(t) for t in report.templates))
 
+        # Resolve out-of-band (interactsh) interactions after all requests are sent.
+        if oast_session is not None and executor.oast_pending:
+            self.logger.task("awaiting OAST callbacks", 0)
+            poll_wait = float(getattr(self.config, "oast_wait", 6) or 6)
+            for item in await executor.resolve_oast(poll_wait=poll_wait):
+                results.append(item)
+                self.logger.finding(finding_from_vuln(item))
+            stats["oast_interactions"] = sum(len(v) for v in oast_session.interactions.values())
+            await oast_session.client.close()
+
         stats["vulns_found"] = len(results)
         stats["requests_sent"] = executor.requests_sent
         stats["cache_hits"] = executor.cache_hits
         stats["request_errors"] = executor.errors
         return self._make_result(target, results, stats)
+
+    async def _maybe_start_oast(self, report):
+        """Register an interactsh session if OAST is enabled and templates need it."""
+        if not getattr(self.config, "oast", False):
+            return None
+        if not any(t.needs_oast for t in report.templates):
+            return None
+        try:
+            from falsealarm.core.oast import OASTSession
+            from falsealarm.core.oast.interactsh import InteractshClient
+        except ImportError:
+            self.logger.warning("OAST requested but 'cryptography' is not installed (pip install falsealarm[oast]).")
+            return None
+        client = InteractshClient(
+            server=getattr(self.config, "oast_server", None) or None,
+            token=getattr(self.config, "oast_token", None) or None,
+            timeout=self.config.timeout,
+        )
+        if not await client.register():
+            self.logger.warning("Could not register with any interactsh server; OAST templates will be skipped.")
+            return None
+        self.logger.info(f"OAST ready via {client.server} ({client.correlation_id}).")
+        return OASTSession(client=client)

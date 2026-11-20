@@ -131,10 +131,23 @@ falsealarm scan -u "https://app.example.com/s?q=x" -m sqli --sqli-technique erro
 | `--parallel N` | Scan N targets at once. |
 | `--sqli-technique` | `error,boolean,time` (default: error,boolean; +time on `--depth deep`). |
 | `--sqli-delay` | Seconds for time-based probes. |
+| `--oast` | Enable out-of-band (interactsh) testing for `vulnscan`. |
+| `--oast-server` / `--oast-token` | Use a self-hosted interactsh server. |
 
-`sqli` is a **detector**: confirmed findings should be handed to `sqlmap` for
-exploitation/extraction. User defaults live in `~/.falsealarm/config.yaml`
-(`falsealarm config init`).
+```bash
+# NoSQL injection (operator injection + login bypass) and SSTI
+falsealarm scan -u "https://app.example.com/item?id=1" -m nosqli
+falsealarm scan -u "https://app.example.com/page?name=x" -m ssti
+
+# Out-of-band (interactsh) templates for blind SSRF/RCE/XXE
+pip install 'falsealarm[oast]'
+falsealarm scan -u https://app.example.com -m vulnscan \
+  -T ~/.falsealarm/nuclei-templates/http --tags ssrf --oast
+```
+
+`sqli`, `nosqli` and `ssti` are **detectors**: hand confirmed findings to
+`sqlmap` / `tplmap`. `--oast` only reports when the target actually calls back.
+User defaults live in `~/.falsealarm/config.yaml` (`falsealarm config init`).
 
 ---
 

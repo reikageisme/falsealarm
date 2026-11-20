@@ -75,6 +75,7 @@ class Template:
     variables: dict[str, Any] = field(default_factory=dict)
     stop_at_first_match: bool = False
     dialect: str = "nuclei"
+    needs_oast: bool = False
 
     @property
     def name(self) -> str:
@@ -183,7 +184,7 @@ def _load_payloads(raw: Any, template_dir: Path) -> dict[str, list[str]]:
     return payloads
 
 
-def _check_matchers(matchers: list[dict]) -> None:
+def _check_matchers(matchers: list[dict], allow_oast: bool = False) -> None:
     for m in matchers:
         if not isinstance(m, dict):
             raise InvalidTemplate("matcher must be a mapping")
@@ -191,7 +192,7 @@ def _check_matchers(matchers: list[dict]) -> None:
         if m_type not in SUPPORTED_MATCHERS:
             raise UnsupportedTemplate(f"matcher-{m_type or 'missing'}")
         part = str(m.get("part", ""))
-        if part.startswith("interactsh"):
+        if part.startswith("interactsh") and not allow_oast:
             raise UnsupportedTemplate("interactsh")
 
 
@@ -204,7 +205,7 @@ def _check_extractors(extractors: list[dict]) -> None:
             raise UnsupportedTemplate(f"extractor-{e_type}")
 
 
-def _normalise_request(block: dict, top_condition: str, template_dir: Path, legacy: bool) -> HTTPRequest:
+def _normalise_request(block: dict, top_condition: str, template_dir: Path, legacy: bool, allow_oast: bool = False) -> HTTPRequest:
     if not isinstance(block, dict):
         raise InvalidTemplate("request block must be a mapping")
 
@@ -218,7 +219,7 @@ def _normalise_request(block: dict, top_condition: str, template_dir: Path, lega
 
     matchers = _as_list(block.get("matchers"))
     extractors = _as_list(block.get("extractors"))
-    _check_matchers(matchers)
+    _check_matchers(matchers, allow_oast)
     _check_extractors(extractors)
 
     # Legacy FalseAlarm templates put matchers-condition at the top level.
@@ -248,7 +249,7 @@ def _normalise_request(block: dict, top_condition: str, template_dir: Path, lega
     )
 
 
-def parse_template(data: Any, path: str, source_text: str = "") -> Template:
+def parse_template(data: Any, path: str, source_text: str = "", allow_oast: bool = False) -> Template:
     """Turn a parsed YAML document into a Template (or raise)."""
     if not isinstance(data, dict) or "id" not in data:
         raise InvalidTemplate("missing id")
@@ -263,7 +264,7 @@ def parse_template(data: Any, path: str, source_text: str = "") -> Template:
         raise UnsupportedTemplate("flow")
     if data.get("self-contained"):
         raise UnsupportedTemplate("self-contained")
-    if "interactsh" in source_text:
+    if "interactsh" in source_text and not allow_oast:
         raise UnsupportedTemplate("interactsh")
 
     legacy = "http" not in data
@@ -274,7 +275,7 @@ def parse_template(data: Any, path: str, source_text: str = "") -> Template:
 
     template_dir = Path(path).parent
     top_condition = str(data.get("matchers-condition") or "or")
-    requests = [_normalise_request(b, top_condition, template_dir, legacy) for b in blocks]
+    requests = [_normalise_request(b, top_condition, template_dir, legacy, allow_oast) for b in blocks]
     if not any(r.matchers or r.extractors for r in requests):
         raise InvalidTemplate("template has no matchers or extractors")
 
@@ -290,17 +291,18 @@ def parse_template(data: Any, path: str, source_text: str = "") -> Template:
         variables={str(k): v for k, v in variables.items()},
         stop_at_first_match=bool(data.get("stop-at-first-match")),
         dialect="falsealarm" if legacy and "matchers-condition" in data else "nuclei",
+        needs_oast="interactsh" in source_text,
     )
 
 
-def load_template_file(path: str) -> Template:
+def load_template_file(path: str, allow_oast: bool = False) -> Template:
     with open(path, encoding="utf-8", errors="replace") as fh:
         text = fh.read()
     try:
         data = yaml.load(text, Loader=_Loader)  # noqa: S506 - CSafeLoader/SafeLoader only
     except yaml.YAMLError as exc:
         raise InvalidTemplate(f"yaml error: {exc}") from exc
-    return parse_template(data, path, text)
+    return parse_template(data, path, text, allow_oast)
 
 
 def iter_template_files(paths: Iterable[str]) -> Iterable[str]:
@@ -376,14 +378,14 @@ class TemplateFilter:
         return True
 
 
-def load_templates(paths: Iterable[str], template_filter: TemplateFilter | None = None) -> LoadReport:
+def load_templates(paths: Iterable[str], template_filter: TemplateFilter | None = None, allow_oast: bool = False) -> LoadReport:
     """Load every template under *paths*, applying *template_filter*."""
     report = LoadReport()
     seen_ids: set[str] = set()
     for file_path in iter_template_files(paths):
         report.files_seen += 1
         try:
-            template = load_template_file(file_path)
+            template = load_template_file(file_path, allow_oast)
         except UnsupportedTemplate as exc:
             report.unsupported[str(exc)] += 1
             continue

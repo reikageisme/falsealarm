@@ -9,9 +9,11 @@ from .graphql import GraphQLModule
 from .headers_ssl import HeadersSSLModule
 from .httpprobe import HTTPProbeModule
 from .js_analysis import JSAnalysisModule
+from .nosqli import NoSQLiModule
 from .openredirect import OpenRedirectModule
 from .portscan import PortScanModule
 from .sqli import SQLiModule
+from .ssti import SSTIModule
 from .subdomain import SubdomainModule
 from .techdetect import TechDetectModule
 from .vulnscan import VulnScanModule
@@ -36,4 +38,6 @@ __all__ = [
     "GraphQLModule",
     "OpenRedirectModule",
     "SQLiModule",
+    "SSTIModule",
+    "NoSQLiModule",
 ]

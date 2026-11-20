@@ -180,7 +180,7 @@ def build_requests(req: HTTPRequest, ctx: dict[str, Any]) -> list[tuple[Prepared
 class TemplateExecutor:
     """Runs templates against a single target, sharing a response cache."""
 
-    def __init__(self, engine: Any, concurrency: int = 25, cache_size: int = 4096):
+    def __init__(self, engine: Any, concurrency: int = 25, cache_size: int = 4096, oast: Any = None):
         self.engine = engine
         self.sem = asyncio.Semaphore(max(1, concurrency))
         self._cache: dict[tuple, asyncio.Future] = {}
@@ -188,6 +188,10 @@ class TemplateExecutor:
         self.requests_sent = 0
         self.cache_hits = 0
         self.errors = 0
+        # Out-of-band (interactsh) session; set only when OAST templates run.
+        self.oast = oast
+        # Deferred OAST matcher evaluations, resolved after a final poll.
+        self.oast_pending: list[dict] = []
 
     async def _send(self, prepared: PreparedRequest) -> dict:
         key = prepared.cache_key()
@@ -222,12 +226,27 @@ class TemplateExecutor:
                 fut.set_result(response)
         return response
 
+    def _uses_oast(self, req: Any) -> bool:
+        for m in req.matchers:
+            if str(m.get("part", "")).startswith("interactsh"):
+                return True
+            if m.get("type") == "dsl" and any("interactsh" in str(d) for d in m.get("dsl", [])):
+                return True
+        return False
+
     async def run(self, template: Template, target: str) -> list[dict]:
         base = target_variables(target)
         ctx: dict[str, Any] = dict(base)
         ctx["randstr"] = _randstr()
         for i in range(1, 6):
             ctx[f"randstr_{i}"] = _randstr()
+
+        # OAST: hand this template run a unique interactsh callback hostname.
+        oast_uid = ""
+        if template.needs_oast and self.oast is not None and self.oast.client.available:
+            host, oast_uid = self.oast.register(template.id)
+            ctx["interactsh-url"] = host
+
         # Template variables may reference each other and target placeholders.
         for key, value in template.variables.items():
             try:
@@ -272,6 +291,14 @@ class TemplateExecutor:
                 if req.req_condition:
                     continue  # matchers run once the whole block has been sent
 
+                # OAST matchers can only be judged after a poll; defer them.
+                if oast_uid and self._uses_oast(req):
+                    self.oast_pending.append({
+                        "template": template, "uid": oast_uid, "eval_ctx": dict(eval_ctx),
+                        "req": req, "url": prepared.url, "payload": dict(payload),
+                    })
+                    continue
+
                 outcome = match_all(req.matchers, eval_ctx, req.matchers_condition)
                 if outcome.matched:
                     gate_passed = True
@@ -293,6 +320,36 @@ class TemplateExecutor:
                     )
             if stop or (is_gate and not gate_passed):
                 break
+        return findings
+
+    async def resolve_oast(self, poll_wait: float = 6.0) -> list[dict]:
+        """After all templates ran, poll for OAST interactions and judge the
+        deferred interactsh matchers. Returns any new findings."""
+        if not self.oast_pending or self.oast is None:
+            return []
+        # Give slow DNS/HTTP callbacks time to land, then sweep.
+        await asyncio.sleep(max(0.0, poll_wait))
+        await self.oast.collect()
+
+        findings: list[dict] = []
+        seen: set[tuple] = set()
+        for entry in self.oast_pending:
+            hits = self.oast.hits_for(entry["uid"])
+            if not hits:
+                continue
+            protocols = ",".join(sorted({h.protocol for h in hits if h.protocol}))
+            ctx = dict(entry["eval_ctx"])
+            ctx["interactsh_protocol"] = protocols
+            ctx["interactsh_request"] = hits[0].raw_request
+            ctx["interactsh_interactions"] = [h.to_dict() for h in hits]
+            req = entry["req"]
+            outcome = match_all(req.matchers, ctx, req.matchers_condition)
+            if outcome.matched and outcome.reportable:
+                values, _ = extract_all(req.extractors, ctx)
+                evidence = f"{protocols or 'oast'} interaction from {hits[0].remote_address or 'target'}"
+                self._record(findings, seen, entry["template"], entry["url"], outcome.names,
+                             values + [evidence], entry["payload"])
+        self.oast_pending.clear()
         return findings
 
     @staticmethod

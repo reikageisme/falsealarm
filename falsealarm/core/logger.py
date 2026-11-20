@@ -113,19 +113,12 @@ class FalseAlarmLogger:
             self.dashboard.advance(n)
 
     def finding_hook(self, result) -> None:
-        """Stream a module-specific result object (e.g. SQLiResult) as a finding."""
+        """Stream an injection result (sqli/ssti/nosqli) object as a finding."""
         try:
-            from falsealarm.core.findings import Finding
+            from falsealarm.core.findings import finding_from_injection
 
-            technique = getattr(result, "technique", "")
-            title = (f"SQL injection auth-bypass ({result.parameter})" if technique == "auth-bypass"
-                     else f"SQL injection — {technique} ({result.where}: {result.parameter})")
-            self.finding(Finding(
-                getattr(result, "severity", "critical"), title,
-                str(result.extra.get("url", "")), "sqli", f"sqli-{technique}",
-                evidence=(result.evidence,) if result.evidence else (),
-                detail=getattr(result, "dbms", "") or "",
-            ))
+            item = result.to_dict() if hasattr(result, "to_dict") else dict(result)
+            self.finding(finding_from_injection(item))
         except Exception:
             pass
 

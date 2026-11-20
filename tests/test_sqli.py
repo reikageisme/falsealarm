@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
+from falsealarm.core.injection.forms import _FormParser
 from falsealarm.core.sqli.detector import LoginProbe, SQLiDetector, detect_auth_bypass
 from falsealarm.core.sqli.signatures import match_dbms_error
-from falsealarm.modules.sqli import _FormParser
 
 # --------------------------------------------------------------------------- #
 # Error signatures

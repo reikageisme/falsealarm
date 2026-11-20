@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`ssti` module** — server-side template injection detection. Injects
+  arithmetic payloads in each major engine's syntax (Jinja2, Twig, Freemarker,
+  Velocity, ERB, Mako, Razor, EL, Handlebars) and reports only when the server
+  evaluates **two different products**, so a page that merely contains the
+  number is never a false positive. Identifies the engine.
+- **`nosqli` module** — NoSQL (MongoDB-style) injection: operator injection
+  (`id[$ne]` vs `id[$eq]`), `$where` JS boolean, driver error signatures, and
+  login auth-bypass via operator payloads. Each hit re-verified.
+- **Out-of-band testing (interactsh/OAST)** for `vulnscan`: `--oast` registers
+  with a public interactsh server (or `--oast-server`/`--oast-token` for a
+  self-hosted one), substitutes `{{interactsh-url}}`, polls for DNS/HTTP
+  callbacks and judges `interactsh_protocol`/`interactsh_request` matchers —
+  making ~430 blind-SSRF/RCE/XXE templates runnable. Needs
+  `pip install falsealarm[oast]` (the `cryptography` package). OAST findings
+  are only reported on a real callback.
+- `ssti` and `nosqli` run on `--depth deep` and `insane`, and share the sqli
+  parameter/form-discovery framework.
 - **`sqli` module** — SQL injection detection across URL query parameters, GET
   and POST form fields, and **login auth-bypass** (`' OR '1'='1`). Four
   techniques: error-based (DBMS signatures), boolean-based blind

@@ -59,10 +59,12 @@ Current depth profiles are:
 `-T ~/.falsealarm/nuclei-templates/http` with `--tags`, `-s/--severity`,
 `--exclude-tags`. Check coverage with `falsealarm templates validate <dir>`.
 
-`sqli` detects SQL injection (error/boolean/time-based) and login auth-bypass
-(`' OR '1'='1`) on query params and forms; re-verifies every hit. It is a
-detector — hand confirmed findings to sqlmap. Authenticated scans: `-H`/`-b`.
-Scope: `--scope`/`--exclude-scope`. User defaults: `falsealarm config init`.
+`sqli`, `nosqli` and `ssti` detect SQL / NoSQL / template injection on query
+params and forms (login auth-bypass included); each hit is re-verified. They
+are detectors — hand confirmed findings to sqlmap / tplmap. `vulnscan --oast`
+enables interactsh out-of-band templates (needs `falsealarm[oast]`).
+Authenticated scans: `-H`/`-b`. Scope: `--scope`/`--exclude-scope`. User
+defaults: `falsealarm config init`.
 
 Use `-m name1,name2` when the user needs an exact module set. FalseAlarm
 auto-discovers installed modules, so prefer `modules` output over a memorized

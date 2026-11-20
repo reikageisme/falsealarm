@@ -36,8 +36,10 @@ dependencies = [
 [project.optional-dependencies]
 # Shodan-compatible favicon hashing (falsealarm[favicon]).
 favicon = ["mmh3>=4.0"]
+# Out-of-band (interactsh) testing for blind SSRF/RCE/XXE templates.
+oast = ["cryptography>=42.0"]
 # Everything optional at once.
-all = ["mmh3>=4.0"]
+all = ["mmh3>=4.0", "cryptography>=42.0"]
 
 [project.urls]
 Homepage = "https://github.com/reikageisme/falsealarm"

@@ -90,6 +90,38 @@ def finding_from_vuln(item: dict[str, Any]) -> Finding:
     )
 
 
+_INJECTION_LABELS = {
+    "sqli": ("SQL injection", "SQL injection auth-bypass"),
+    "nosqli": ("NoSQL injection", "NoSQL injection auth-bypass"),
+    "ssti": ("Server-side template injection", "Server-side template injection"),
+}
+
+
+def finding_from_injection(item: dict[str, Any]) -> Finding:
+    """Build a Finding from a sqli / nosqli / ssti result dict."""
+    module = str(item.get("type") or "sqli")
+    noun, auth_noun = _INJECTION_LABELS.get(module, ("Injection", "Injection auth-bypass"))
+    technique = str(item.get("technique") or item.get("engine") or module)
+    param = str(item.get("parameter") or "?")
+    where = str(item.get("where") or "query")
+    loc = _loc(item.get("url"))
+    if item.get("method"):
+        loc = f"{item['method']} {loc}"
+    if technique == "auth-bypass":
+        title = f"{auth_noun} ({param})"
+    elif module == "ssti":
+        engine = str(item.get("engine") or "unknown")
+        title = f"{noun} — {engine} ({where}: {param})"
+    else:
+        title = f"{noun} — {technique} ({where}: {param})"
+    dbms = str(item.get("dbms") or item.get("engine") or "")
+    evidence = tuple(e for e in (item.get("evidence"), f"payload: {item.get('payload')}") if e)
+    return Finding(
+        "critical", title, loc, module, f"{module}-{technique}",
+        evidence=evidence, detail=dbms if dbms not in ("", "unknown") else "",
+    )
+
+
 def collect_findings(results: dict[str, Any]) -> list[Finding]:
     """Normalise one scan's module results into a sorted, de-duplicated list."""
     found: list[Finding] = []
@@ -97,21 +129,9 @@ def collect_findings(results: dict[str, Any]) -> list[Finding]:
     for item in _items(results, "vulnscan"):
         found.append(finding_from_vuln(item))
 
-    for item in _items(results, "sqli"):
-        technique = str(item.get("technique") or "sqli")
-        dbms = str(item.get("dbms") or "unknown")
-        where = str(item.get("where") or "query")
-        param = str(item.get("parameter") or "?")
-        loc = _loc(item.get("url"))
-        if item.get("method"):
-            loc = f"{item['method']} {loc}"
-        title = (f"SQL injection auth-bypass ({param})" if technique == "auth-bypass"
-                 else f"SQL injection — {technique} ({where}: {param})")
-        evidence = tuple(e for e in (item.get("evidence"), f"payload: {item.get('payload')}") if e)
-        found.append(Finding(
-            "critical", title, loc, "sqli", f"sqli-{technique}",
-            evidence=evidence, detail=dbms if dbms != "unknown" else "",
-        ))
+    for module in ("sqli", "nosqli", "ssti"):
+        for item in _items(results, module):
+            found.append(finding_from_injection(item))
 
     for item in _items(results, "cors"):
         if item.get("type") == "cors_vulnerability":

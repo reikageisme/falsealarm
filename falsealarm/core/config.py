@@ -57,6 +57,11 @@ class ScanConfig:
     # sqli module tuning
     sqli_delay: int = 5
     sqli_techniques: list[str] = field(default_factory=list)
+    # out-of-band (interactsh) testing for vulnscan
+    oast: bool = False
+    oast_server: str | None = None
+    oast_token: str | None = None
+    oast_wait: int = 6
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""

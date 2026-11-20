@@ -120,9 +120,11 @@ from falsealarm.modules import (
     HeadersSSLModule,
     HTTPProbeModule,
     JSAnalysisModule,
+    NoSQLiModule,
     OpenRedirectModule,
     PortScanModule,
     SQLiModule,
+    SSTIModule,
     SubdomainModule,
     TechDetectModule,
     WaybackModule,
@@ -154,4 +156,6 @@ __all__ = [
     "GraphQLModule",
     "OpenRedirectModule",
     "SQLiModule",
+    "SSTIModule",
+    "NoSQLiModule",
 ]

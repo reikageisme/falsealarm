@@ -159,6 +159,9 @@ def run_scan(
     parallel: int = typer.Option(1, "--parallel", help="Scan this many targets concurrently [default: 1]"),
     sqli_technique: Optional[str] = typer.Option(None, "--sqli-technique", help="sqli: techniques to run (error,boolean,time). Default: error,boolean (+time on --depth deep)"),
     sqli_delay: int = typer.Option(5, "--sqli-delay", help="sqli: seconds for time-based injection probes [default: 5]"),
+    oast: bool = typer.Option(False, "--oast", help="vulnscan: enable out-of-band (interactsh) testing for blind SSRF/RCE/XXE templates"),
+    oast_server: Optional[str] = typer.Option(None, "--oast-server", help="interactsh server host (default: public oast.* servers)"),
+    oast_token: Optional[str] = typer.Option(None, "--oast-token", help="interactsh server auth token"),
     include_third_party_js: bool = typer.Option(False, "--include-third-party-js", help="Analyze third-party JavaScript assets (noisier)"),
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
@@ -205,6 +208,9 @@ def run_scan(
         "parallel": parallel if parallel != 1 else None,
         "sqli_techniques": _csv(sqli_technique),
         "sqli_delay": sqli_delay if sqli_delay != 5 else None,
+        "oast": oast or None,
+        "oast_server": oast_server,
+        "oast_token": oast_token,
     }
     template_opts = {
         "templates": _csv(templates),
@@ -597,6 +603,7 @@ def templates_validate(
     tags: Optional[str] = typer.Option(None, "--tags", help="Only count templates with these tags"),
     severity: Optional[str] = typer.Option(None, "-s", "--severity", help="Only count these severities"),
     show_invalid: bool = typer.Option(False, "--show-invalid", help="List invalid template files"),
+    oast: bool = typer.Option(False, "--oast", help="Count interactsh (OAST) templates as runnable"),
 ):
     """Check which templates FalseAlarm can run and why the others are skipped."""
     from collections import Counter
@@ -607,7 +614,7 @@ def templates_validate(
     from falsealarm.core.templates import TemplateFilter, load_templates
 
     console = Console()
-    report = load_templates(paths, TemplateFilter.build(tags=_csv(tags), severities=_csv(severity)))
+    report = load_templates(paths, TemplateFilter.build(tags=_csv(tags), severities=_csv(severity)), allow_oast=oast)
     console.print(f"[bold]Templates:[/bold] {report.summary()}")
 
     by_sev = Counter(t.severity for t in report.templates)

@@ -78,6 +78,8 @@ def test_all_selects_every_discovered_module_name():
         "graphql",
         "openredirect",
         "sqli",
+        "ssti",
+        "nosqli",
     ]
 
 

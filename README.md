@@ -107,13 +107,35 @@ EOF
 * **Dynamic Fingerprinting:** Automated rotation of `User-Agent` and HTTP headers (Accept, Accept-Language, Accept-Encoding) to blend into legitimate traffic profiles. The Go fuzzing engine now honours the same proxy, rate limit, and User-Agent as the Python core.
 * **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
 
+> **Injection family:** `sqli`, `nosqli` and `ssti` share one framework —
+> they enumerate URL/query parameters and HTML form fields (GET and POST,
+> login forms included), inject per-engine payloads, and **re-verify every
+> candidate** before reporting. They are *detectors*: hand confirmed findings
+> to `sqlmap` / `tplmap` for exploitation.
+
 ### Authenticated & Scoped Scanning
 * **Authenticated scans:** pass `-H "Authorization: Bearer …"` (repeatable) and/or `-b "session=…"`; every request in every module stays authenticated.
 * **Scope guard:** `--scope example.com,*.example.com,10.0.0.0/8` keeps the scan — including auto-discovered subdomains, redirects and JS endpoints — inside the authorised scope; `--exclude-scope` blocks hosts.
 * **User defaults:** `falsealarm config init` writes `~/.falsealarm/config.yaml` (rate, headers, scope, templates…), applied to every scan; profiles and CLI flags override it.
 * **Parallel targets:** `--parallel N` scans N targets at once; history, `--diff` and `--resume` share one home database no matter the working directory.
 
-### SQL Injection & Login Bypass
+### Out-of-Band Testing (interactsh / OAST)
+`vulnscan` can run nuclei's blind SSRF/RCE/XXE templates that rely on an
+out-of-band callback (`{{interactsh-url}}`). With `--oast`, FalseAlarm
+registers with a public interactsh server (or your own via `--oast-server`),
+substitutes callback hostnames, and reports a finding only when the target
+actually calls back (DNS/HTTP). This turns ~430 otherwise-skipped templates
+into runnable checks.
+
+```bash
+pip install 'falsealarm[oast]'          # adds the cryptography dependency
+falsealarm scan -u https://target -m vulnscan -T ~/.falsealarm/nuclei-templates/http \
+  --tags ssrf,rce --oast
+# self-hosted interactsh:
+falsealarm scan -u https://target -m vulnscan --oast --oast-server oast.mydomain.com --oast-token "$TOKEN"
+```
+
+### SQL / NoSQL / Template Injection & Login Bypass
 * **Four techniques:** error-based (DBMS error signatures), boolean-based blind (response-similarity), time-based blind (with a second confirmation probe to rule out slow apps), and classic authentication bypass on login forms.
 * **Finds parameters for you:** URL query parameters and HTML form fields (GET and POST), including login forms.
 * **Low false positives:** every candidate is re-verified before it becomes a finding. It is a *detector*, not a dumper — hand confirmed findings to `sqlmap` for extraction.
@@ -164,6 +186,8 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 | `graphql` | GraphQL endpoint discovery & introspection-exposure check | Active | Production |
 | `openredirect` | Open-redirect probing across common redirect parameters | Active | Production |
 | `sqli` | SQL injection detection — error / boolean / time-based + **login auth-bypass** (`' OR '1'='1`), every hit re-verified | Aggressive | Production |
+| `ssti` | Server-side template injection — arithmetic evaluation across Jinja2/Twig/Freemarker/ERB/Velocity/…, double-confirmed | Aggressive | Production |
+| `nosqli` | NoSQL injection — MongoDB operator injection (`[$ne]`), `$where` JS boolean, error-based, and **login auth-bypass** | Aggressive | Production |
 
 ---
 
