@@ -66,10 +66,13 @@ def print_banner(console=None, show_help=False) -> None:
             [bold yellow]# 5. Nuclei templates (run `falsealarm templates update` once)[/bold yellow]
             falsealarm scan -u example.com -m vulnscan -T ~/.falsealarm/nuclei-templates/http -s high,critical
 
-            [bold yellow]# 6. Shareable report + CI gate (exit 2 on high/critical)[/bold yellow]
-            falsealarm scan -u example.com --html report.html --fail-on high
+            [bold yellow]# 6. SQL injection (params, forms, login auth-bypass)[/bold yellow]
+            falsealarm scan -u "example.com/item?id=1" -m sqli
 
-            [bold yellow]# 7. AI Triage Integration[/bold yellow]
+            [bold yellow]# 7. Authenticated + in-scope + shareable report / CI gate[/bold yellow]
+            falsealarm scan -u example.com -A -H "Authorization: Bearer T" --scope example.com --html report.html --fail-on high
+
+            [bold yellow]# 8. AI Triage Integration[/bold yellow]
             falsealarm scan -u example.com -A --ai-triage
         """).strip('\n')
 
@@ -119,6 +122,7 @@ from falsealarm.modules import (
     JSAnalysisModule,
     OpenRedirectModule,
     PortScanModule,
+    SQLiModule,
     SubdomainModule,
     TechDetectModule,
     WaybackModule,
@@ -149,4 +153,5 @@ __all__ = [
     "FaviconModule",
     "GraphQLModule",
     "OpenRedirectModule",
+    "SQLiModule",
 ]

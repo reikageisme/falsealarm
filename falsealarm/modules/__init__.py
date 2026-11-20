@@ -11,6 +11,7 @@ from .httpprobe import HTTPProbeModule
 from .js_analysis import JSAnalysisModule
 from .openredirect import OpenRedirectModule
 from .portscan import PortScanModule
+from .sqli import SQLiModule
 from .subdomain import SubdomainModule
 from .techdetect import TechDetectModule
 from .vulnscan import VulnScanModule
@@ -34,4 +35,5 @@ __all__ = [
     "FaviconModule",
     "GraphQLModule",
     "OpenRedirectModule",
+    "SQLiModule",
 ]

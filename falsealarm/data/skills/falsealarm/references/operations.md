@@ -52,12 +52,17 @@ Current depth profiles are:
 | --- | --- | --- |
 | `-q` / `--depth quick` | `httpprobe`, `ssl` | Small HTTP/TLS baseline |
 | default / `--depth normal` | quick plus `tech`, `vulnscan`, `cors`, `favicon` | Active web assessment |
-| `--depth deep` | normal plus `dirfuzz`, `websocket`, `js_analysis`, `wayback`, `graphql`, `openredirect` | Broad application mapping |
+| `--depth deep` | normal plus `dirfuzz`, `websocket`, `js_analysis`, `wayback`, `graphql`, `openredirect`, `sqli` | Broad application mapping |
 | `-A` / `--depth insane` | deep plus `dns`, `subdomain`, `portscan` | Full active reconnaissance |
 
 `vulnscan` runs nuclei HTTP templates: `falsealarm templates update`, then
 `-T ~/.falsealarm/nuclei-templates/http` with `--tags`, `-s/--severity`,
 `--exclude-tags`. Check coverage with `falsealarm templates validate <dir>`.
+
+`sqli` detects SQL injection (error/boolean/time-based) and login auth-bypass
+(`' OR '1'='1`) on query params and forms; re-verifies every hit. It is a
+detector — hand confirmed findings to sqlmap. Authenticated scans: `-H`/`-b`.
+Scope: `--scope`/`--exclude-scope`. User defaults: `falsealarm config init`.
 
 Use `-m name1,name2` when the user needs an exact module set. FalseAlarm
 auto-discovers installed modules, so prefer `modules` output over a memorized

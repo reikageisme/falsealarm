@@ -9,6 +9,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from falsealarm import __version__
+from falsealarm.core.paths import nuclei_templates_dir
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,7 +34,7 @@ app = typer.Typer(
 
 SUPPORTED_COMMANDS = {
     "scan", "list-scans", "modules", "build-engine", "install-skill", "templates",
-    "--help", "-h", "--version",
+    "config", "--help", "-h", "--version",
 }
 
 def version_callback(value: bool):
@@ -57,7 +58,7 @@ def root_options(
 
 @app.command(name="list-scans")
 def list_scans(
-    db_path: str = typer.Option("falsealarm.db", "--db", help="Database file path")
+    db_path: Optional[str] = typer.Option(None, "--db", help="Database file (default: ~/.falsealarm/falsealarm.db)")
 ):
     """List saved scans."""
     async def _list_scans():
@@ -151,6 +152,13 @@ def run_scan(
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Proxy URL (http:// or socks5://)"),
     proxy_file: Optional[str] = typer.Option(None, "--proxy-file", help="File with proxy list"),
     random_agent: bool = typer.Option(False, "--random-agent", help="Use random User-Agent"),
+    header: list[str] = typer.Option(None, "-H", "--header", help="Extra request header 'Name: value' (repeatable) — for authenticated scans"),
+    cookie: Optional[str] = typer.Option(None, "-b", "--cookie", help="Cookie header for authenticated scans, e.g. 'session=abc; role=admin'"),
+    scope: Optional[str] = typer.Option(None, "--scope", help="Only scan hosts matching these (comma-separated host/*.wildcard/CIDR/URL-prefix)"),
+    exclude_scope: Optional[str] = typer.Option(None, "--exclude-scope", help="Never scan hosts matching these (comma-separated)"),
+    parallel: int = typer.Option(1, "--parallel", help="Scan this many targets concurrently [default: 1]"),
+    sqli_technique: Optional[str] = typer.Option(None, "--sqli-technique", help="sqli: techniques to run (error,boolean,time). Default: error,boolean (+time on --depth deep)"),
+    sqli_delay: int = typer.Option(5, "--sqli-delay", help="sqli: seconds for time-based injection probes [default: 5]"),
     include_third_party_js: bool = typer.Option(False, "--include-third-party-js", help="Analyze third-party JavaScript assets (noisier)"),
     wordlist: Optional[str] = typer.Option(None, "-w", "--wordlist", help="Custom wordlist file"),
     output: Optional[str] = typer.Option(None, "-o", "--output", help="Output file path"),
@@ -179,6 +187,7 @@ def run_scan(
     fail_on: Optional[str] = typer.Option(None, "--fail-on", help="Exit with code 2 if a finding at/above this severity is found (CI gate)"),
     no_banner: bool = typer.Option(False, "--no-banner", help="Skip the ASCII banner"),
     no_progress: bool = typer.Option(False, "--no-progress", help="Disable the live dashboard (plain scrolling log)"),
+    no_config: bool = typer.Option(False, "--no-config", help="Ignore ~/.falsealarm/config.yaml user defaults"),
     version: Optional[bool] = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version"),
 ):
     """
@@ -188,6 +197,15 @@ def run_scan(
         raise typer.BadParameter("must be one of info, low, medium, high, critical", param_hint="--fail-on")
     ui_opts = {"html": html, "fail_on": fail_on.lower() if fail_on else None, "no_banner": no_banner,
                "no_progress": no_progress}
+    cli_opts = {
+        "headers": list(header or []),
+        "cookie": cookie,
+        "scope": _csv(scope),
+        "exclude_scope": _csv(exclude_scope),
+        "parallel": parallel if parallel != 1 else None,
+        "sqli_techniques": _csv(sqli_technique),
+        "sqli_delay": sqli_delay if sqli_delay != 5 else None,
+    }
     template_opts = {
         "templates": _csv(templates),
         "template_tags": _csv(tags),
@@ -207,7 +225,7 @@ def run_scan(
                 resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate,
                 notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token,
                 telegram_chat_id=telegram_chat_id, pipe=pipe, recursion_depth=recursion_depth,
-                template_opts=template_opts, ui_opts=ui_opts,
+                template_opts=template_opts, ui_opts=ui_opts, cli_opts=cli_opts, no_config=no_config,
             )
         )
     except KeyboardInterrupt:
@@ -224,7 +242,7 @@ async def _run_scan(
     adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None,
     telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
     pipe: bool = False, recursion_depth: int = 0, template_opts: Optional[dict] = None,
-    ui_opts: Optional[dict] = None,
+    ui_opts: Optional[dict] = None, cli_opts: Optional[dict] = None, no_config: bool = False,
 ):
     from falsealarm.core.utils import sanitize_target
 
@@ -259,61 +277,50 @@ async def _run_scan(
             typer.secho(f"[!] Could not read target list: {e}", fg=typer.colors.RED)
             sys.exit(1)
 
-    if config_file:
-        try:
-            config = ScanConfig.from_file(config_file, profile)
-            # Override YAML config with explicit CLI flags if provided
-            if url: config.target = sanitize_target(url)
-            if target_list: config.targets_file = target_list
-            if modules_list: config.modules = modules_list
-            if output: config.output = output
-            if report: config.report = report
-            if silent: config.silent = silent
-            if verbose: config.verbose = verbose
-            if include_third_party_js: config.include_third_party_js = True
-            config.depth = depth
-            config.adaptive_rate = adaptive_rate
-            config.pipe = pipe
-            config.recursion_depth = recursion_depth
-        except Exception as e:
-            typer.secho(f"[!] Config Error: {e}", fg=typer.colors.RED)
-            sys.exit(1)
-    else:
-        config = ScanConfig(
-            target=url or "",
-            targets_file=target_list,
-            modules=modules_list,
-            threads=threads,
-            rate=rate,
-            timeout=timeout,
-            delay=delay,
-            proxy=proxy,
-            proxy_file=proxy_file,
-            random_agent=random_agent,
-            include_third_party_js=include_third_party_js,
-            output=output,
-            report=report,
-            format=format_type,
-            silent=silent,
-            verbose=verbose,
-            wordlist=wordlist,
-            resume=resume,
-            ai_triage=ai_triage,
-            diff=diff,
-            depth=depth,
-            adaptive_rate=adaptive_rate,
-            pipe=pipe,
-            recursion_depth=recursion_depth,
-            notify_type=notify_type,
-            notify_webhook=notify_webhook,
-            telegram_token=telegram_token,
-            telegram_chat_id=telegram_chat_id,
-        )
+    # Settings are layered, later wins: built-in defaults -> user config
+    # (~/.falsealarm/config.yaml) -> named profile from -c file -> CLI flags.
+    try:
+        from falsealarm.core.paths import user_config_path
 
-    # Template selection flags override any values from a YAML profile.
-    for key, value in (template_opts or {}).items():
-        if value:
-            setattr(config, key, value)
+        user_layer = {}
+        if not no_config:
+            user_layer = ScanConfig.read_profile(str(user_config_path()), "default", required=False)
+        profile_layer = ScanConfig.read_profile(config_file, profile, required=True) if config_file else {}
+    except (ValueError, FileNotFoundError) as e:
+        typer.secho(f"[!] Config Error: {e}", fg=typer.colors.RED)
+        sys.exit(1)
+
+    # Only non-default CLI flags override profile/user settings, so a value set
+    # in config.yaml is not silently clobbered by a flag's default.
+    cli_layer = {
+        "target": sanitize_target(url) if url else None,
+        "targets_file": target_list,
+        "modules": modules_list or None,
+        "threads": threads if threads != 50 else None,
+        "rate": rate if rate != 30 else None,
+        "timeout": timeout if timeout != 10 else None,
+        "delay": delay if delay else None,
+        "proxy": proxy, "proxy_file": proxy_file,
+        "random_agent": random_agent or None,
+        "include_third_party_js": include_third_party_js or None,
+        "output": output, "report": report,
+        "format": format_type if format_type != "txt" else None,
+        "silent": silent or None, "verbose": verbose or None,
+        "wordlist": wordlist, "resume": resume,
+        "ai_triage": ai_triage or None, "diff": diff or None,
+        "depth": depth if depth != "normal" else None,
+        "adaptive_rate": adaptive_rate or None, "pipe": pipe or None,
+        "recursion_depth": recursion_depth or None,
+        "notify_type": notify_type, "notify_webhook": notify_webhook,
+        "telegram_token": telegram_token, "telegram_chat_id": telegram_chat_id,
+        **{k: v for k, v in (template_opts or {}).items() if v},
+        **{k: v for k, v in (cli_opts or {}).items() if v},
+    }
+    try:
+        config = ScanConfig.layered(user_layer, profile_layer, cli_layer)
+    except (TypeError, ValueError) as e:
+        typer.secho(f"[!] Config Error: {e}", fg=typer.colors.RED)
+        sys.exit(1)
 
     # Ingest targets from stdin when piped and none were supplied explicitly.
     # This must happen before validate(), which requires at least one target.
@@ -387,113 +394,157 @@ async def _run_scan(
             await db.close()
         return
 
-    gate_failed = False
-    for current_target in targets:
-        if not current_target:
-            continue
+    # Apply the scope guard to the explicit targets too (not just discovered ones).
+    from falsealarm.core.scope import ScopeGuard
 
-        if len(targets) > 1 and not silent:
+    guard = ScopeGuard(config.scope, config.exclude_scope)
+    if guard.active:
+        in_scope = guard.filter(targets)
+        if len(in_scope) != len(targets) and not silent:
+            logger.warning(f"Scope guard: {len(targets) - len(in_scope)} target(s) skipped as out of scope.")
+        targets = in_scope
+        if not targets:
+            typer.secho("[!] No targets remain in scope.", fg=typer.colors.RED)
+            await db.close()
+            sys.exit(1)
+
+    parallel = max(1, min(int(config.parallel), len(targets)))
+    gate_failed = False
+    _print_lock = asyncio.Lock()
+
+    async def _scan_one(current_target: str, tlogger: "FalseAlarmLogger") -> bool:
+        if len(targets) > 1 and not silent and tlogger is logger:
             logger.console.print(f"\n[bold yellow]>>> Scanning Target: {current_target} <<<[/bold yellow]")
 
-        # Create a deep copy of config for this specific target
         target_config = ScanConfig.from_dict(config.to_dict())
         target_config.target = current_target
 
         engine = AsyncEngine(target_config)
+        scheduler = ScanScheduler(config=target_config, engine=engine, db=db, logger=tlogger)
+        local_gate = False
+        try:
+            scan_results = await scheduler.run()
 
-        scheduler = ScanScheduler(config=target_config, engine=engine, db=db, logger=logger)
+            # Diff against the previous completed scan of this target, and
+            # optionally push a notification with what changed.
+            if target_config.diff or target_config.notify_type:
+                from falsealarm.core.diff import diff_scan_results, format_diff_summary
 
-        # Modules are automatically registered during ScanScheduler initialization
-        scan_results = await scheduler.run()
+                previous = await db.get_last_completed_scan(
+                    current_target, exclude_scan_id=scheduler.scan_id
+                )
+                if previous is not None:
+                    changes = diff_scan_results(previous, scan_results)
+                    summary = format_diff_summary(current_target, changes)
 
-        # Diff against the previous completed scan of this target, and
-        # optionally push a notification with what changed.
-        if target_config.diff or target_config.notify_type:
-            from falsealarm.core.diff import diff_scan_results, format_diff_summary
+                    if not silent and target_config.diff:
+                        tlogger.console.print(Panel(
+                            Markdown(summary),
+                            title="[bold cyan]🔎 Diff vs. previous scan[/bold cyan]",
+                            border_style="cyan",
+                        ))
 
-            previous = await db.get_last_completed_scan(
-                current_target, exclude_scan_id=scheduler.scan_id
-            )
-            if previous is not None:
-                changes = diff_scan_results(previous, scan_results)
-                summary = format_diff_summary(current_target, changes)
+                    if changes and target_config.notify_type:
+                        from falsealarm.core.notify import NotifyError, NotifyManager
+                        try:
+                            notifier = NotifyManager(
+                                notify_type=target_config.notify_type,
+                                webhook_url=target_config.notify_webhook,
+                                telegram_token=target_config.telegram_token,
+                                telegram_chat_id=target_config.telegram_chat_id,
+                            )
+                            await notifier.send(summary, title=f"FalseAlarm — {current_target}")
+                            if not silent:
+                                tlogger.success("Notification sent.")
+                        except NotifyError as e:
+                            tlogger.error(f"Notification failed: {e}")
+                elif not silent and target_config.diff:
+                    tlogger.info("No previous completed scan found for this target — nothing to diff against yet.")
 
-                if not silent and target_config.diff:
-                    logger.console.print(Panel(
-                        Markdown(summary),
-                        title="[bold cyan]🔎 Diff vs. previous scan[/bold cyan]",
-                        border_style="cyan",
-                    ))
+            saved: list[str] = []
 
-                if changes and target_config.notify_type:
-                    from falsealarm.core.notify import NotifyError, NotifyManager
-                    try:
-                        notifier = NotifyManager(
-                            notify_type=target_config.notify_type,
-                            webhook_url=target_config.notify_webhook,
-                            telegram_token=target_config.telegram_token,
-                            telegram_chat_id=target_config.telegram_chat_id,
-                        )
-                        await notifier.send(summary, title=f"FalseAlarm — {current_target}")
-                        if not silent:
-                            logger.success("Notification sent.")
-                    except NotifyError as e:
-                        logger.error(f"Notification failed: {e}")
-            elif not silent and target_config.diff:
-                logger.info("No previous completed scan found for this target — nothing to diff against yet.")
+            def _per_target(path: str, default_ext: str) -> str:
+                # Multiple targets: suffix the file name so targets don't overwrite each other.
+                if len(targets) <= 1:
+                    return path
+                base, ext = os.path.splitext(path)
+                safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
+                return f"{base}_{safe_target}{ext or default_ext}"
 
-        saved: list[str] = []
+            # Pipe mode: stream NDJSON to stdout for chaining with other tools.
+            if pipe_mode:
+                stdout_fmt = "jsonl" if format_type in {"txt", "table", "csv"} else format_type
+                await OutputManager.export(scan_results, "-", stdout_fmt)
 
-        def _per_target(path: str, default_ext: str) -> str:
-            # Multiple targets: suffix the file name so targets don't overwrite each other.
-            if len(targets) <= 1:
-                return path
-            base, ext = os.path.splitext(path)
-            safe_target = current_target.replace("://", "_").replace("/", "_").replace(":", "_")
-            return f"{base}_{safe_target}{ext or default_ext}"
+            if output and output != "-":
+                final_output = _per_target(output, "")
+                await OutputManager.export(scan_results, final_output, format_type)
+                saved.append(final_output)
 
-        # Pipe mode: stream NDJSON to stdout for chaining with other tools.
-        if pipe_mode:
-            stdout_fmt = "jsonl" if format_type in {"txt", "table", "csv"} else format_type
-            await OutputManager.export(scan_results, "-", stdout_fmt)
+            if report:
+                from falsealarm.core.report import PentestReport
+                final_report = _per_target(report, ".md")
+                await PentestReport.export(current_target, scan_results, final_report)
+                saved.append(final_report)
 
-        if output and output != "-":
-            final_output = _per_target(output, "")
-            await OutputManager.export(scan_results, final_output, format_type)
-            saved.append(final_output)
+            if ui_opts.get("html"):
+                from falsealarm.core.html_report import HTMLReport
+                final_html = _per_target(ui_opts["html"], ".html")
+                HTMLReport.export(current_target, scan_results, final_html, stats=engine.stats,
+                                  duration=scheduler.duration, scan_id=scheduler.scan_id)
+                saved.append(final_html)
 
-        if report:
-            from falsealarm.core.report import PentestReport
-            final_report = _per_target(report, ".md")
-            await PentestReport.export(current_target, scan_results, final_report)
-            saved.append(final_report)
+            from falsealarm.core.findings import collect_findings, severity_at_least
 
-        if ui_opts.get("html"):
-            from falsealarm.core.html_report import HTMLReport
-            final_html = _per_target(ui_opts["html"], ".html")
-            HTMLReport.export(current_target, scan_results, final_html, stats=engine.stats,
-                              duration=scheduler.duration, scan_id=scheduler.scan_id)
-            saved.append(final_html)
+            if not silent and not pipe_mode:
+                from falsealarm.core.ui import print_module_views, print_summary
 
-        from falsealarm.core.findings import collect_findings, severity_at_least
+                tlogger.console.print()
+                print_module_views(tlogger.console, scan_results)
+                findings = print_summary(tlogger.console, current_target, scan_results, engine.stats, saved,
+                                         scheduler.duration, scheduler.scan_id)
+            else:
+                findings = collect_findings(scan_results)
+                for path in saved:
+                    tlogger.success(f"Saved {path}")
 
-        if not silent and not pipe_mode:
-            from falsealarm.core.ui import print_module_views, print_summary
+            threshold = ui_opts.get("fail_on")
+            if threshold and any(severity_at_least(f.severity, threshold) for f in findings):
+                local_gate = True
 
-            logger.console.print()
-            print_module_views(logger.console, scan_results)
-            findings = print_summary(logger.console, current_target, scan_results, engine.stats, saved,
-                                     scheduler.duration, scheduler.scan_id)
-        else:
-            findings = collect_findings(scan_results)
-            for path in saved:
-                logger.success(f"Saved {path}")
+        finally:
+            await engine.close()
+            # In parallel mode, flush this target's buffered output atomically.
+            if tlogger is not logger:
+                buffered = tlogger.export_text()
+                if buffered.strip():
+                    async with _print_lock:
+                        logger.console.print(f"\n[bold yellow]>>> {current_target} <<<[/bold yellow]")
+                        logger.console.file.write(buffered)
+                        logger.console.file.flush()
+        return local_gate
 
-        threshold = ui_opts.get("fail_on")
-        if threshold and any(severity_at_least(f.severity, threshold) for f in findings):
-            gate_failed = True
+    if parallel > 1:
+        # Concurrent targets: no shared live dashboard; each gets a buffered
+        # logger flushed atomically on completion.
+        sem = asyncio.Semaphore(parallel)
 
-        await engine.close()
+        async def _guarded(t: str) -> bool:
+            async with sem:
+                return await _scan_one(t, FalseAlarmLogger.buffered(verbose=verbose))
+
+        if not silent:
+            logger.info(f"Scanning {len(targets)} targets, {parallel} at a time…")
+        gate_results = await asyncio.gather(*(_guarded(t) for t in targets if t), return_exceptions=True)
+        for res in gate_results:
+            if isinstance(res, Exception):
+                logger.error(f"Target scan failed: {res}")
+            elif res:
+                gate_failed = True
+    else:
+        for current_target in targets:
+            if current_target and await _scan_one(current_target, logger):
+                gate_failed = True
 
     await db.close()
 
@@ -511,7 +562,7 @@ templates_app = typer.Typer(help="Manage and validate vulnscan templates (nuclei
 app.add_typer(templates_app, name="templates")
 
 NUCLEI_TEMPLATES_REPO = "https://github.com/projectdiscovery/nuclei-templates.git"
-DEFAULT_NUCLEI_DIR = os.path.join(os.path.expanduser("~"), ".falsealarm", "nuclei-templates")
+DEFAULT_NUCLEI_DIR = str(nuclei_templates_dir())
 
 
 @templates_app.command(name="update")
@@ -580,6 +631,57 @@ def templates_validate(
             console.print(f"[red]invalid[/red] {path}: {err}")
     if report.loaded == 0:
         raise typer.Exit(1)
+
+
+config_app = typer.Typer(help="Manage ~/.falsealarm/config.yaml user defaults.", no_args_is_help=True)
+app.add_typer(config_app, name="config")
+
+CONFIG_TEMPLATE = """\
+# FalseAlarm user defaults (~/.falsealarm/config.yaml).
+# Applied to every scan; a profile from `-c file -p name` and explicit CLI
+# flags override these. Run `falsealarm config path` to see the location.
+default:
+  rate: 30
+  threads: 50
+  timeout: 10
+  random_agent: true
+  # headers: ["Authorization: Bearer <token>"]   # authenticated scans
+  # scope: ["example.com", "*.example.com"]        # stay in scope
+  # templates: ["~/.falsealarm/nuclei-templates/http"]
+  # exclude_tags: ["intrusive"]
+
+# A second profile you can select with `-p stealth`.
+stealth:
+  rate: 5
+  threads: 10
+  random_agent: true
+  adaptive_rate: true
+  # proxy: socks5://127.0.0.1:9050
+"""
+
+
+@config_app.command(name="init")
+def config_init(force: bool = typer.Option(False, "--force", help="Overwrite an existing config")):
+    """Write a starter ~/.falsealarm/config.yaml."""
+    from falsealarm.core.paths import ensure_home, user_config_path
+
+    ensure_home()
+    path = user_config_path()
+    if path.exists() and not force:
+        typer.secho(f"[!] {path} already exists. Use --force to overwrite.", fg=typer.colors.YELLOW)
+        raise typer.Exit(1)
+    path.write_text(CONFIG_TEMPLATE, encoding="utf-8")
+    typer.secho(f"[+] Wrote {path}", fg=typer.colors.GREEN)
+
+
+@config_app.command(name="path")
+def config_path():
+    """Print the config and home-directory locations."""
+    from falsealarm.core.paths import default_db_path, home_dir, user_config_path
+
+    print(f"home:    {home_dir()}")
+    print(f"config:  {user_config_path()}")
+    print(f"db:      {default_db_path()}")
 
 
 @app.command(name="build-engine")

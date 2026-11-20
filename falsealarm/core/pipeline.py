@@ -32,7 +32,7 @@ class PipelineManager:
             "subdomain": ["httpprobe"],
             "httpprobe": [
                 "tech", "ssl", "cors", "dirfuzz", "websocket", "js_analysis",
-                "favicon", "graphql", "openredirect",
+                "favicon", "graphql", "openredirect", "sqli",
             ],
             "tech": ["vulnscan"],
             "portscan": ["httpprobe"],
@@ -44,12 +44,12 @@ class PipelineManager:
             "deep": [
                 "httpprobe", "ssl", "tech", "vulnscan", "cors", "dirfuzz",
                 "websocket", "js_analysis", "wayback", "favicon", "graphql",
-                "openredirect",
+                "openredirect", "sqli",
             ],
             "insane": [
                 "dns", "subdomain", "portscan", "httpprobe", "ssl", "tech",
                 "vulnscan", "cors", "dirfuzz", "websocket", "js_analysis",
-                "wayback", "favicon", "graphql", "openredirect",
+                "wayback", "favicon", "graphql", "openredirect", "sqli",
             ],
         }
 

@@ -77,6 +77,7 @@ def test_all_selects_every_discovered_module_name():
         "favicon",
         "graphql",
         "openredirect",
+        "sqli",
     ]
 
 

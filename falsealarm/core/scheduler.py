@@ -63,6 +63,9 @@ class ScanScheduler:
         self._modules: dict[str, type] = {}
         self._scan_id: str | None = None
         self.duration = 0.0
+        from falsealarm.core.scope import ScopeGuard
+
+        self._scope = ScopeGuard(getattr(config, "scope", None), getattr(config, "exclude_scope", None))
         self._discover_modules()
 
     def _discover_modules(self) -> None:
@@ -321,7 +324,16 @@ class ScanScheduler:
                 url = item.get("url")
                 if url and item.get("alive"):
                     targets.append(url)
-        return list(dict.fromkeys(canonical_url(target) for target in targets if target))
+        deduped = list(dict.fromkeys(canonical_url(target) for target in targets if target))
+        # Keep auto-discovered targets inside the authorised scope.
+        scope = getattr(self, "_scope", None)
+        if scope is not None and scope.active:
+            allowed = scope.filter(deduped)
+            dropped = len(deduped) - len(allowed)
+            if dropped:
+                self.logger.debug(f"Scope guard dropped {dropped} out-of-scope {module_name} target(s).")
+            return allowed
+        return deduped
 
     async def run_module(self, module_name: str):
         """Run a single module by name.

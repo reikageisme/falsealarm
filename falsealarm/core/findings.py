@@ -97,6 +97,22 @@ def collect_findings(results: dict[str, Any]) -> list[Finding]:
     for item in _items(results, "vulnscan"):
         found.append(finding_from_vuln(item))
 
+    for item in _items(results, "sqli"):
+        technique = str(item.get("technique") or "sqli")
+        dbms = str(item.get("dbms") or "unknown")
+        where = str(item.get("where") or "query")
+        param = str(item.get("parameter") or "?")
+        loc = _loc(item.get("url"))
+        if item.get("method"):
+            loc = f"{item['method']} {loc}"
+        title = (f"SQL injection auth-bypass ({param})" if technique == "auth-bypass"
+                 else f"SQL injection — {technique} ({where}: {param})")
+        evidence = tuple(e for e in (item.get("evidence"), f"payload: {item.get('payload')}") if e)
+        found.append(Finding(
+            "critical", title, loc, "sqli", f"sqli-{technique}",
+            evidence=evidence, detail=dbms if dbms != "unknown" else "",
+        ))
+
     for item in _items(results, "cors"):
         if item.get("type") == "cors_vulnerability":
             found.append(Finding(

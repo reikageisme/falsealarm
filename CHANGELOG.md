@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`sqli` module** — SQL injection detection across URL query parameters, GET
+  and POST form fields, and **login auth-bypass** (`' OR '1'='1`). Four
+  techniques: error-based (DBMS signatures), boolean-based blind
+  (response-similarity), time-based blind (with a confirmation probe so a
+  uniformly slow app is not a false positive), and auth-bypass. Every hit is
+  re-verified. Flags `--sqli-technique`, `--sqli-delay`; runs in `--depth deep`
+  and `insane`. It is a detector, not an exploitation/dump tool.
+- **Authenticated scanning**: `-H/--header` (repeatable) and `-b/--cookie`
+  apply to every request in every module.
+- **Scope guard**: `--scope` / `--exclude-scope` (host, `*.wildcard`, CIDR, URL
+  prefix) bound the scan and every auto-discovered downstream target.
+- **User config**: `~/.falsealarm/config.yaml` with layered precedence
+  (defaults → config → `-c` profile → CLI flags); `falsealarm config init` /
+  `config path`. Scan history, config and templates live under
+  `~/.falsealarm/` (override with `FALSEALARM_HOME` / `FALSEALARM_DB` /
+  `FALSEALARM_CONFIG`), so `--diff`/`--resume`/`list-scans` work from any dir.
+- **`--parallel N`**: scan N targets concurrently (buffered, non-interleaved
+  output per target).
+- Response bodies are capped (`max_body`, default 2 MB) so a huge or streamed
+  response cannot exhaust memory.
 - **Live terminal dashboard.** Current module and target, progress bar
   (templates done/total), live req/s, HTTP status mix and findings by
   severity. Disabled automatically without a TTY, or with `--no-progress`.

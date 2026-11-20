@@ -44,6 +44,19 @@ class ScanConfig:
     severity: list[str] = field(default_factory=list)
     template_ids: list[str] = field(default_factory=list)
     exclude_template_ids: list[str] = field(default_factory=list)
+    # authenticated scanning: extra headers ("Name: value") and a Cookie string
+    headers: list[str] = field(default_factory=list)
+    cookie: str | None = None
+    # scope guard: hosts/wildcards/CIDRs/URL prefixes allowed and denied
+    scope: list[str] = field(default_factory=list)
+    exclude_scope: list[str] = field(default_factory=list)
+    # read at most this many bytes of each response body
+    max_body: int = 2_000_000
+    # number of targets scanned concurrently in a multi-target run
+    parallel: int = 1
+    # sqli module tuning
+    sqli_delay: int = 5
+    sqli_techniques: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
@@ -55,6 +68,57 @@ class ScanConfig:
         valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
         return cls(**filtered_data)
+
+    def header_dict(self) -> dict[str, str]:
+        """Parse ``headers`` ("Name: value") and ``cookie`` into a dict."""
+        out: dict[str, str] = {}
+        for raw in self.headers:
+            if ":" not in raw:
+                continue
+            name, value = raw.split(":", 1)
+            if name.strip():
+                out[name.strip()] = value.strip()
+        if self.cookie:
+            out["Cookie"] = f"{out['Cookie']}; {self.cookie}" if "Cookie" in out else self.cookie
+        return out
+
+    @staticmethod
+    def read_profile(filepath: str, profile: str = "default", required: bool = True) -> dict[str, Any]:
+        """Read one profile from a YAML file.
+
+        A file may hold named profiles (``default:``, ``stealth:`` …) or be a
+        flat mapping of settings, which is treated as the ``default`` profile.
+        """
+        import os
+
+        import yaml
+
+        if not os.path.exists(filepath):
+            if required:
+                raise FileNotFoundError(f"Configuration file not found: {filepath}")
+            return {}
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        if not isinstance(data, dict):
+            raise ValueError(f"{filepath} must contain a mapping")
+        section = data.get(profile)
+        if isinstance(section, dict):
+            return section
+        if section is None and any(k in set(cls_fields()) for k in data):
+            # Flat file: the whole mapping is the default profile.
+            if profile == "default":
+                return data
+        if required:
+            raise ValueError(f"Profile '{profile}' not found in {filepath}")
+        return {}
+
+    @classmethod
+    def layered(cls, *layers: dict[str, Any]) -> "ScanConfig":
+        """Merge settings dicts in order (later wins) into a config."""
+        merged: dict[str, Any] = {}
+        for layer in layers:
+            merged.update({k: v for k, v in (layer or {}).items() if v is not None})
+        return cls.from_dict(merged)
 
     @classmethod
     def from_file(cls, filepath: str, profile: str = "default") -> "ScanConfig":
@@ -90,6 +154,10 @@ class ScanConfig:
             raise ValueError("Depth must be one of: quick, normal, deep, insane.")
         if self.format not in {"table", "json", "jsonl", "csv", "txt", "sarif"}:
             raise ValueError("Output format must be one of: table, json, jsonl, csv, txt, sarif.")
+        if self.max_body < 1024:
+            raise ValueError("max_body must be at least 1024 bytes.")
+        if self.parallel < 1:
+            raise ValueError("Parallel targets must be at least 1.")
         if self.recursion_depth < 0:
             raise ValueError("Recursion depth cannot be negative.")
         bad_sev = {s.lower() for s in self.severity} - {"info", "low", "medium", "high", "critical", "unknown"}
@@ -103,3 +171,7 @@ class ScanConfig:
             self.telegram_token and self.telegram_chat_id
         ):
             raise ValueError("Telegram notifications require both token and chat ID.")
+
+
+def cls_fields() -> list[str]:
+    return [f.name for f in ScanConfig.__dataclass_fields__.values()]

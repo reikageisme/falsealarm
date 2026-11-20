@@ -109,7 +109,36 @@ The same keys (`templates`, `template_tags`, `exclude_tags`, `severity`,
 
 ---
 
-## Workflow 5 — Reports & CI gate
+## Workflow 5 — Authenticated, scoped & SQLi scans
+
+```bash
+# Authenticated scan, kept strictly in scope
+falsealarm scan -u https://app.example.com -A \
+  -H "Authorization: Bearer $TOKEN" -b "session=$SID" \
+  --scope app.example.com,*.example.com --exclude-scope logout.example.com
+
+# SQL injection: query params, forms and login auth-bypass
+falsealarm scan -u "https://app.example.com/item?id=1" -m sqli
+falsealarm scan -u "https://app.example.com/login" -m sqli      # ' OR '1'='1
+falsealarm scan -u "https://app.example.com/s?q=x" -m sqli --sqli-technique error,boolean,time
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-H, --header` | Extra request header (repeatable) — authenticated scans. |
+| `-b, --cookie` | Cookie header for authenticated scans. |
+| `--scope` / `--exclude-scope` | Bound the scan (host/`*.wildcard`/CIDR/URL prefix). |
+| `--parallel N` | Scan N targets at once. |
+| `--sqli-technique` | `error,boolean,time` (default: error,boolean; +time on `--depth deep`). |
+| `--sqli-delay` | Seconds for time-based probes. |
+
+`sqli` is a **detector**: confirmed findings should be handed to `sqlmap` for
+exploitation/extraction. User defaults live in `~/.falsealarm/config.yaml`
+(`falsealarm config init`).
+
+---
+
+## Workflow 6 — Reports & CI gate
 
 ```bash
 # Shareable single-file HTML report + raw JSON
@@ -131,7 +160,7 @@ Terminal output is plain text automatically when stdout is not a TTY; set
 
 ---
 
-## Workflow 6 — Continuous monitoring
+## Workflow 7 — Continuous monitoring
 
 FalseAlarm can alert only on **what changed** since the last scan — new
 subdomains, new open ports, new findings. Pair `--diff` with `--notify`:

@@ -408,7 +408,7 @@ VIEWS: dict[str, Callable[[list[dict]], Table]] = {
     "favicon": _view_favicon,
 }
 # Modules whose output is fully represented in the findings table.
-FINDING_ONLY = {"vulnscan", "openredirect"}
+FINDING_ONLY = {"vulnscan", "openredirect", "sqli"}
 
 
 def print_module_views(console: Console, results: dict[str, Any]) -> None:

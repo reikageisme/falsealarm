@@ -55,6 +55,26 @@ class FalseAlarmLogger:
         verbose: If True, show debug messages.
     """
 
+    @classmethod
+    def buffered(cls, verbose: bool = False) -> "FalseAlarmLogger":
+        """A logger that records output to a string instead of a live terminal.
+
+        Used for parallel multi-target scans so each target's output can be
+        flushed to the real console atomically (no interleaving, no dashboard).
+        """
+        from rich.console import Console
+
+        obj = cls(silent=False, verbose=verbose, live=False)
+        obj.console = Console(record=True, width=100, file=open(os.devnull, "w"))
+        obj.interactive = False
+        return obj
+
+    def export_text(self) -> str:
+        try:
+            return self.console.export_text(styles=True)
+        except Exception:
+            return ""
+
     def __init__(self, silent: bool = False, verbose: bool = False, stderr: bool = False, live: bool = True):
         self.silent = silent
         self.verbose = verbose
@@ -91,6 +111,23 @@ class FalseAlarmLogger:
     def advance(self, n: int = 1) -> None:
         if self.dashboard is not None:
             self.dashboard.advance(n)
+
+    def finding_hook(self, result) -> None:
+        """Stream a module-specific result object (e.g. SQLiResult) as a finding."""
+        try:
+            from falsealarm.core.findings import Finding
+
+            technique = getattr(result, "technique", "")
+            title = (f"SQL injection auth-bypass ({result.parameter})" if technique == "auth-bypass"
+                     else f"SQL injection — {technique} ({result.where}: {result.parameter})")
+            self.finding(Finding(
+                getattr(result, "severity", "critical"), title,
+                str(result.extra.get("url", "")), "sqli", f"sqli-{technique}",
+                evidence=(result.evidence,) if result.evidence else (),
+                detail=getattr(result, "dbms", "") or "",
+            ))
+        except Exception:
+            pass
 
     def finding(self, finding) -> None:
         """Print a confirmed finding as one coloured, copy-friendly line."""

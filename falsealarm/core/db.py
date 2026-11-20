@@ -7,6 +7,7 @@ Uses aiosqlite for non-blocking database operations.
 """
 
 import json
+import os
 
 import aiosqlite
 
@@ -25,7 +26,14 @@ class Database:
         db_path: Path to the SQLite database file.
     """
 
-    def __init__(self, db_path: str = "falsealarm.db"):
+    def __init__(self, db_path: str | None = None):
+        if db_path is None:
+            from falsealarm.core.paths import default_db_path, ensure_home
+
+            ensure_home()
+            db_path = default_db_path()
+        else:
+            os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
         self.db_path = db_path
         self._conn: aiosqlite.Connection | None = None
 

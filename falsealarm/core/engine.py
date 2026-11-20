@@ -24,7 +24,7 @@ from falsealarm.core.rate_limiter import TokenBucketRateLimiter
 class EngineStats:
     """Live counters for the terminal dashboard and the final summary."""
 
-    __slots__ = ("requests", "errors", "statuses", "bytes", "started")
+    __slots__ = ("requests", "errors", "statuses", "bytes", "truncated", "started")
 
     def __init__(self) -> None:
         from collections import Counter
@@ -33,6 +33,7 @@ class EngineStats:
         self.errors = 0
         self.statuses: Counter = Counter()
         self.bytes = 0
+        self.truncated = 0
         self.started = time.monotonic()
 
     @property
@@ -68,6 +69,8 @@ class AsyncEngine:
         self._proxy_manager: ProxyManager | None = None
         self._started = False
         self.stats = EngineStats()
+        self._auth_headers = config.header_dict()
+        self._max_body = max(1024, int(getattr(config, "max_body", 2_000_000)))
 
     async def start(self) -> None:
         """Initialize the HTTP session and all sub-components.
@@ -193,6 +196,10 @@ class AsyncEngine:
                     fp_headers = self._fingerprint.get_headers()
                     fp_headers.update(headers)
                     headers = fp_headers
+                # User-supplied auth headers / cookies win over fingerprint and
+                # per-request headers, so every request stays authenticated.
+                if self._auth_headers:
+                    headers.update(self._auth_headers)
 
                 # Get proxy for aiohttp
                 proxy = None
@@ -217,15 +224,17 @@ class AsyncEngine:
                 ) as response:
                     elapsed = time.monotonic() - start_time
 
+                    # Cap body reads so a huge/streamed response can't exhaust
+                    # memory; most detection only needs the first couple of MB.
                     body = ""
                     try:
-                        body = await response.text(errors="replace")
+                        raw = await response.content.read(self._max_body + 1)
+                        if len(raw) > self._max_body:
+                            self.stats.truncated += 1
+                            raw = raw[: self._max_body]
+                        body = raw.decode(response.charset or "utf-8", errors="replace")
                     except Exception:
-                        try:
-                            raw = await response.read()
-                            body = raw.decode("utf-8", errors="replace")
-                        except Exception:
-                            body = ""
+                        body = ""
 
                     # Extract title from HTML
                     title = ""

@@ -107,6 +107,28 @@ EOF
 * **Dynamic Fingerprinting:** Automated rotation of `User-Agent` and HTTP headers (Accept, Accept-Language, Accept-Encoding) to blend into legitimate traffic profiles. The Go fuzzing engine now honours the same proxy, rate limit, and User-Agent as the Python core.
 * **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
 
+### Authenticated & Scoped Scanning
+* **Authenticated scans:** pass `-H "Authorization: Bearer …"` (repeatable) and/or `-b "session=…"`; every request in every module stays authenticated.
+* **Scope guard:** `--scope example.com,*.example.com,10.0.0.0/8` keeps the scan — including auto-discovered subdomains, redirects and JS endpoints — inside the authorised scope; `--exclude-scope` blocks hosts.
+* **User defaults:** `falsealarm config init` writes `~/.falsealarm/config.yaml` (rate, headers, scope, templates…), applied to every scan; profiles and CLI flags override it.
+* **Parallel targets:** `--parallel N` scans N targets at once; history, `--diff` and `--resume` share one home database no matter the working directory.
+
+### SQL Injection & Login Bypass
+* **Four techniques:** error-based (DBMS error signatures), boolean-based blind (response-similarity), time-based blind (with a second confirmation probe to rule out slow apps), and classic authentication bypass on login forms.
+* **Finds parameters for you:** URL query parameters and HTML form fields (GET and POST), including login forms.
+* **Low false positives:** every candidate is re-verified before it becomes a finding. It is a *detector*, not a dumper — hand confirmed findings to `sqlmap` for extraction.
+
+```bash
+# Probe a parameter and any forms on the page (error + boolean by default)
+falsealarm scan -u "https://app.example.com/item?id=1" -m sqli
+
+# Add time-based blind (slower) and raise the delay
+falsealarm scan -u "https://app.example.com/search?q=x" -m sqli --sqli-technique error,boolean,time --sqli-delay 8
+
+# Test a login form for ' OR '1'='1 auth bypass
+falsealarm scan -u "https://app.example.com/login" -m sqli
+```
+
 ### Reporting & CI
 * **Live terminal dashboard:** progress, real-time req/s, status-code mix and findings by severity; nuclei-style one-line findings you can copy straight into a report.
 * **Shareable HTML report** (`--html`), Markdown handoff (`--report`), SARIF for GitHub code scanning, JSON/JSONL/CSV.
@@ -141,6 +163,7 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 | `favicon` | Favicon hashing (Shodan `mmh3` + `sha256`) for asset pivoting | Active | Production |
 | `graphql` | GraphQL endpoint discovery & introspection-exposure check | Active | Production |
 | `openredirect` | Open-redirect probing across common redirect parameters | Active | Production |
+| `sqli` | SQL injection detection — error / boolean / time-based + **login auth-bypass** (`' OR '1'='1`), every hit re-verified | Aggressive | Production |
 
 ---
 
