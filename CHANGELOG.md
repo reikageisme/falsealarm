@@ -4,6 +4,40 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Nuclei-compatible `vulnscan`.** The template engine now runs nuclei HTTP
+  templates: `http:`/`requests:` blocks, `path` lists and `raw` requests,
+  `payloads` with batteringram/pitchfork/clusterbomb attacks, `variables`,
+  multi-step templates with named/internal extractors (`{{csrf}}`),
+  `req-condition` with `body_1`/`status_code_2` history, `stop-at-first-match`,
+  redirects, and `word`/`regex`/`status`/`size`/`binary`/`dsl` matchers
+  (`part`, `condition`, `negative`, `case-insensitive`, `internal`).
+  Extractors: `regex` (with `group`), `kval`, `json` (jq subset), `dsl`.
+- **Sandboxed DSL evaluator** covering the nuclei helper functions used by the
+  community templates (`contains*`, `regex`, `compare_versions`, `mmh3`,
+  hashing/encoding, `rand_*`, …). Expressions are parsed with a strict AST
+  whitelist: no attribute access, imports or builtins.
+- **`falsealarm templates update`** (clone/update nuclei-templates) and
+  **`falsealarm templates validate`** (runnable vs. skipped, with reasons).
+- Scan flags `-T/--templates`, `--tags`, `--exclude-tags`, `-s/--severity`,
+  `--template-id`, `--exclude-id`.
+- Findings now carry `tags`, `description`, `reference`, `classification`
+  (CVE/CWE/CVSS), `remediation`, `matcher_name` and the triggering `payload`.
+
+### Changed
+- Identical GET requests issued by different templates are sent once per
+  target and shared (response cache), which removes most of the duplicate
+  traffic when running thousands of templates.
+- Template requests are sent byte-for-byte (`%2e`, `..` are no longer
+  normalised away by yarl), so path-traversal templates work.
+
+### Notes
+- Templates needing interactsh (OAST), `flow:`, `self-contained`, headless,
+  DNS/TCP/SSL/code/javascript protocols or xpath are skipped and reported,
+  never half-executed. Against nuclei-templates this is ~77% runnable.
+
 ## [1.0.6] - 2026-09-19
 
 ### Added

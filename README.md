@@ -132,7 +132,7 @@ FalseAlarm's architecture is strictly modular with dynamic plugin discovery. Eac
 | `cors` | Strict CORS Misconfiguration Analysis & Exploit Verification | Active | Production |
 | `portscan` | Async TCP/UDP Port Scanner (Nmap alternative for L7 chains) | Aggressive | Production |
 | `websocket` | WebSocket (WS/WSS) Discovery & Message Fuzzing | Active | Production |
-| `vulnscan` | Next-Gen YAML-based Vulnerability Detection Engine (regex/header/negative matchers + extractors) | Aggressive | Production |
+| `vulnscan` | **Nuclei-compatible** template scanner — runs the community `nuclei-templates` (≈9k HTTP templates) plus bundled checks | Aggressive | Production |
 | `favicon` | Favicon hashing (Shodan `mmh3` + `sha256`) for asset pivoting | Active | Production |
 | `graphql` | GraphQL endpoint discovery & introspection-exposure check | Active | Production |
 | `openredirect` | Open-redirect probing across common redirect parameters | Active | Production |
@@ -246,6 +246,35 @@ still require a human tester and an intercepting proxy.
 JavaScript analysis is same-origin by default to keep findings inside scope and
 reduce vendor-library noise. Use `--include-third-party-js` only when the rules
 of engagement explicitly include external assets or supply-chain review.
+
+### Nuclei Templates
+
+`vulnscan` runs [nuclei](https://github.com/projectdiscovery/nuclei-templates)
+HTTP templates directly: `path`/`raw` requests, payloads (batteringram,
+pitchfork, clusterbomb), multi-step requests with dynamic extractors, and
+`word`/`regex`/`status`/`size`/`binary`/`dsl` matchers. Every request still
+goes through FalseAlarm's rate limiter, proxies, and adaptive backoff.
+
+```bash
+# One-time: fetch the community templates (~/.falsealarm/nuclei-templates)
+falsealarm templates update
+
+# See how many of them FalseAlarm can run and why the rest are skipped
+falsealarm templates validate ~/.falsealarm/nuclei-templates/http
+
+# Scan with high/critical CVE templates only
+falsealarm scan -u https://example.com -m vulnscan \
+  -T ~/.falsealarm/nuclei-templates/http --tags cve -s high,critical
+
+# Mix your own templates with the bundled ones
+falsealarm scan -u https://example.com -m vulnscan -T ./my-templates,bundled
+```
+
+Templates that need features FalseAlarm does not run yet (out-of-band
+interactsh callbacks, `flow:` scripting, headless/DNS/TCP protocols) are
+**skipped and counted** instead of being run with half the logic, so they can't
+produce false positives. `dos` and `fuzz` tagged templates are excluded unless
+you request them with `--tags`.
 
 ### Standard Reconnaissance
 ```bash

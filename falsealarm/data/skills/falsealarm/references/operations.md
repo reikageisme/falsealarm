@@ -55,6 +55,10 @@ Current depth profiles are:
 | `--depth deep` | normal plus `dirfuzz`, `websocket`, `js_analysis`, `wayback`, `graphql`, `openredirect` | Broad application mapping |
 | `-A` / `--depth insane` | deep plus `dns`, `subdomain`, `portscan` | Full active reconnaissance |
 
+`vulnscan` runs nuclei HTTP templates: `falsealarm templates update`, then
+`-T ~/.falsealarm/nuclei-templates/http` with `--tags`, `-s/--severity`,
+`--exclude-tags`. Check coverage with `falsealarm templates validate <dir>`.
+
 Use `-m name1,name2` when the user needs an exact module set. FalseAlarm
 auto-discovers installed modules, so prefer `modules` output over a memorized
 list.

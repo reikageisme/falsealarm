@@ -32,7 +32,7 @@ app = typer.Typer(
 )
 
 SUPPORTED_COMMANDS = {
-    "scan", "list-scans", "modules", "build-engine", "install-skill",
+    "scan", "list-scans", "modules", "build-engine", "install-skill", "templates",
     "--help", "-h", "--version",
 }
 
@@ -169,11 +169,25 @@ def run_scan(
     notify_webhook: Optional[str] = typer.Option(None, "--notify-webhook", help="Discord/Slack incoming webhook URL"),
     telegram_token: Optional[str] = typer.Option(None, "--telegram-token", help="Telegram bot token (with --notify-type telegram)"),
     telegram_chat_id: Optional[str] = typer.Option(None, "--telegram-chat-id", help="Telegram chat/channel ID (with --notify-type telegram)"),
+    templates: Optional[str] = typer.Option(None, "-T", "--templates", help="vulnscan: template files/dirs, comma-separated (nuclei templates supported; 'bundled' = built-in)"),
+    tags: Optional[str] = typer.Option(None, "--tags", help="vulnscan: only run templates with these tags (comma-separated)"),
+    exclude_tags: Optional[str] = typer.Option(None, "--exclude-tags", help="vulnscan: skip templates with these tags (dos,fuzz are skipped by default)"),
+    severity: Optional[str] = typer.Option(None, "-s", "--severity", help="vulnscan: only run these severities (info,low,medium,high,critical)"),
+    template_id: Optional[str] = typer.Option(None, "--template-id", help="vulnscan: only run these template IDs (comma-separated)"),
+    exclude_id: Optional[str] = typer.Option(None, "--exclude-id", help="vulnscan: skip these template IDs (comma-separated)"),
     version: Optional[bool] = typer.Option(None, "--version", callback=version_callback, is_eager=True, help="Show version"),
 ):
     """
     Run a security scan against a target.
     """
+    template_opts = {
+        "templates": _csv(templates),
+        "template_tags": _csv(tags),
+        "exclude_tags": _csv(exclude_tags),
+        "severity": _csv(severity),
+        "template_ids": _csv(template_id),
+        "exclude_template_ids": _csv(exclude_id),
+    }
     try:
         asyncio.run(
             _run_scan(
@@ -185,6 +199,7 @@ def run_scan(
                 resume=resume, ai_triage=ai_triage, diff=diff, depth=depth, adaptive_rate=adaptive_rate,
                 notify_type=notify_type, notify_webhook=notify_webhook, telegram_token=telegram_token,
                 telegram_chat_id=telegram_chat_id, pipe=pipe, recursion_depth=recursion_depth,
+                template_opts=template_opts,
             )
         )
     except KeyboardInterrupt:
@@ -200,7 +215,7 @@ async def _run_scan(
     resume: Optional[str], ai_triage: bool, diff: bool = False, depth: str = "normal",
     adaptive_rate: bool = False, notify_type: Optional[str] = None, notify_webhook: Optional[str] = None,
     telegram_token: Optional[str] = None, telegram_chat_id: Optional[str] = None,
-    pipe: bool = False, recursion_depth: int = 0,
+    pipe: bool = False, recursion_depth: int = 0, template_opts: Optional[dict] = None,
 ):
     from falsealarm.core.utils import sanitize_target
 
@@ -282,6 +297,11 @@ async def _run_scan(
             telegram_token=telegram_token,
             telegram_chat_id=telegram_chat_id,
         )
+
+    # Template selection flags override any values from a YAML profile.
+    for key, value in (template_opts or {}).items():
+        if value:
+            setattr(config, key, value)
 
     try:
         config.validate()
@@ -450,6 +470,85 @@ async def _run_scan(
         await engine.close()
 
     await db.close()
+
+def _csv(value: Optional[str]) -> list[str]:
+    return [v.strip() for v in (value or "").split(",") if v.strip()]
+
+
+templates_app = typer.Typer(help="Manage and validate vulnscan templates (nuclei-compatible).", no_args_is_help=True)
+app.add_typer(templates_app, name="templates")
+
+NUCLEI_TEMPLATES_REPO = "https://github.com/projectdiscovery/nuclei-templates.git"
+DEFAULT_NUCLEI_DIR = os.path.join(os.path.expanduser("~"), ".falsealarm", "nuclei-templates")
+
+
+@templates_app.command(name="update")
+def templates_update(
+    destination: str = typer.Option(DEFAULT_NUCLEI_DIR, "--dir", help="Where to keep the nuclei-templates checkout"),
+):
+    """Download or update the community nuclei-templates repository (git required)."""
+    import subprocess
+
+    from rich.console import Console
+    console = Console()
+    try:
+        if os.path.isdir(os.path.join(destination, ".git")):
+            console.print(f"[*] Updating {destination} ...")
+            subprocess.run(["git", "-C", destination, "pull", "--ff-only", "--depth", "1"], check=True)
+        else:
+            os.makedirs(os.path.dirname(destination), exist_ok=True)
+            console.print(f"[*] Cloning nuclei-templates into {destination} ...")
+            subprocess.run(["git", "clone", "--depth", "1", NUCLEI_TEMPLATES_REPO, destination], check=True)
+    except FileNotFoundError:
+        console.print("[red][!] git is not installed.[/red]")
+        raise typer.Exit(1)
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red][!] git failed: {e}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green][+] Templates ready.[/green] Use: falsealarm scan -u <url> -m vulnscan -T {os.path.join(destination, 'http')}")
+
+
+@templates_app.command(name="validate")
+def templates_validate(
+    paths: list[str] = typer.Argument(..., help="Template files or directories"),
+    tags: Optional[str] = typer.Option(None, "--tags", help="Only count templates with these tags"),
+    severity: Optional[str] = typer.Option(None, "-s", "--severity", help="Only count these severities"),
+    show_invalid: bool = typer.Option(False, "--show-invalid", help="List invalid template files"),
+):
+    """Check which templates FalseAlarm can run and why the others are skipped."""
+    from collections import Counter
+
+    from rich.console import Console
+    from rich.table import Table
+
+    from falsealarm.core.templates import TemplateFilter, load_templates
+
+    console = Console()
+    report = load_templates(paths, TemplateFilter.build(tags=_csv(tags), severities=_csv(severity)))
+    console.print(f"[bold]Templates:[/bold] {report.summary()}")
+
+    by_sev = Counter(t.severity for t in report.templates)
+    table = Table(title="Runnable templates by severity")
+    table.add_column("Severity")
+    table.add_column("Count", justify="right")
+    for sev in ("critical", "high", "medium", "low", "info", "unknown"):
+        if by_sev.get(sev):
+            table.add_row(sev, str(by_sev[sev]))
+    console.print(table)
+
+    if report.unsupported:
+        skipped = Table(title="Skipped (unsupported features)")
+        skipped.add_column("Reason")
+        skipped.add_column("Count", justify="right")
+        for reason, count in report.unsupported.most_common():
+            skipped.add_row(reason, str(count))
+        console.print(skipped)
+    if show_invalid:
+        for path, err in report.invalid:
+            console.print(f"[red]invalid[/red] {path}: {err}")
+    if report.loaded == 0:
+        raise typer.Exit(1)
+
 
 @app.command(name="build-engine")
 def build_engine():

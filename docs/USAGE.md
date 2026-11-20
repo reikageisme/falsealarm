@@ -86,7 +86,30 @@ subfinder -d example.com | falsealarm --pipe -m httpprobe -o live.jsonl -f jsonl
 
 ---
 
-## Workflow 4 — Continuous monitoring
+## Workflow 4 — Nuclei templates
+
+```bash
+falsealarm templates update                       # clone/update nuclei-templates
+falsealarm templates validate ~/.falsealarm/nuclei-templates/http
+
+falsealarm scan -u https://example.com -m vulnscan \
+  -T ~/.falsealarm/nuclei-templates/http \
+  --tags exposure,cve --severity medium,high,critical --exclude-tags intrusive
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-T, --templates` | Template files/directories, comma-separated. `bundled` = built-in set (default). |
+| `--tags` / `--exclude-tags` | Include / exclude by tag. `dos,fuzz` are excluded by default. |
+| `-s, --severity` | `info,low,medium,high,critical` |
+| `--template-id` / `--exclude-id` | Pick or drop individual templates. |
+
+The same keys (`templates`, `template_tags`, `exclude_tags`, `severity`,
+`template_ids`, `exclude_template_ids`) work as lists in a YAML profile.
+
+---
+
+## Workflow 5 — Continuous monitoring
 
 FalseAlarm can alert only on **what changed** since the last scan — new
 subdomains, new open ports, new findings. Pair `--diff` with `--notify`:

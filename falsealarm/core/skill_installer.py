@@ -8,7 +8,6 @@ from pathlib import Path
 
 from falsealarm.core.utils import get_data_path
 
-
 SUPPORTED_SKILL_TARGETS = ("codex", "claude", "project")
 
 

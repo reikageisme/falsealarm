@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 import certifi
+import yarl
 
 from falsealarm.core.config import ScanConfig
 from falsealarm.core.fingerprint import RequestFingerprint
@@ -174,11 +175,15 @@ class AsyncEngine:
                 if self._proxy_manager and self._proxy_manager.has_proxies:
                     proxy = self._proxy_manager.get_proxy_for_aiohttp()
 
+                # Templates (path traversal, encoded payloads) need the URL sent
+                # byte-for-byte: stop yarl from decoding %2e / collapsing "..".
+                target_url = yarl.URL(url, encoded=True) if req_kwargs.pop("raw_url", False) else url
+
                 # Send request
                 start_time = time.monotonic()
                 async with self._session.request(
                     method,
-                    url,
+                    target_url,
                     headers=headers,
                     proxy=proxy,
                     ssl=False,

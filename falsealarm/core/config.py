@@ -37,6 +37,13 @@ class ScanConfig:
     notify_webhook: str | None = None
     telegram_token: str | None = None
     telegram_chat_id: str | None = None
+    # vulnscan / nuclei-compatible template selection
+    templates: list[str] = field(default_factory=list)
+    template_tags: list[str] = field(default_factory=list)
+    exclude_tags: list[str] = field(default_factory=list)
+    severity: list[str] = field(default_factory=list)
+    template_ids: list[str] = field(default_factory=list)
+    exclude_template_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
@@ -85,6 +92,9 @@ class ScanConfig:
             raise ValueError("Output format must be one of: table, json, jsonl, csv, txt, sarif.")
         if self.recursion_depth < 0:
             raise ValueError("Recursion depth cannot be negative.")
+        bad_sev = {s.lower() for s in self.severity} - {"info", "low", "medium", "high", "critical", "unknown"}
+        if bad_sev:
+            raise ValueError(f"Unknown severity: {', '.join(sorted(bad_sev))}.")
         if self.notify_type not in {None, "discord", "slack", "telegram"}:
             raise ValueError("Notification type must be discord, slack, or telegram.")
         if self.notify_type in {"discord", "slack"} and not self.notify_webhook:
