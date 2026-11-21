@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "falsealarm"
-version = "1.4.0"
+version = "1.4.1"
 description = "Async Web Reconnaissance Engine for Pentesters & Bug Bounty Hunters"
 readme = "README.md"
 license = {text = "MIT"}
@@ -31,6 +31,9 @@ dependencies = [
     "pyyaml>=6.0",
     "certifi",
     "python-dotenv>=1.0.0",
+    # Brotli lets aiohttp decode `Content-Encoding: br` responses (common on
+    # modern sites/CDNs); without it those requests fail outright.
+    "brotli>=1.1",
 ]
 
 [project.optional-dependencies]

@@ -4,6 +4,16 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-11-20
+
+### Fixed
+- **Brotli responses no longer break every request.** On sites/CDNs that reply
+  with `Content-Encoding: br`, aiohttp needs the Brotli package to decode the
+  body; without it every request failed (`Can not decode content-encoding:
+  brotli`) and modules found nothing. `brotli` is now a dependency, and the
+  request fingerprint only advertises `Accept-Encoding` values it can actually
+  decode (so even without Brotli installed, `br` is never requested).
+
 ## [1.4.0] - 2026-11-20
 
 Injection detection and out-of-band testing.

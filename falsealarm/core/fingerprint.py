@@ -39,14 +39,32 @@ _ACCEPT_LANGUAGE_VALUES = [
     "en-US,en;q=0.9,fr;q=0.8",
 ]
 
-# NOTE: only advertise encodings aiohttp can actually decompress. Advertising
-# "zstd" (which aiohttp does not decode) yields undecodable response bodies on
-# servers that honour it, breaking title/length extraction and matchers.
-_ACCEPT_ENCODING_VALUES = [
-    "gzip, deflate, br",
-    "gzip, deflate",
-    "gzip, deflate, br",
-]
+# Only advertise encodings aiohttp can actually decompress. gzip/deflate are
+# always available; "br" (Brotli) needs the Brotli/brotlicffi package and
+# "zstd" the zstandard package — advertising one we cannot decode makes servers
+# return bodies aiohttp rejects with a 400-style ClientError, breaking every
+# request. We therefore detect support at import time and never advertise more
+# than we can read.
+
+def _brotli_available() -> bool:
+    for mod in ("brotli", "brotlicffi"):
+        try:
+            __import__(mod)
+            return True
+        except ImportError:
+            continue
+    return False
+
+
+def _encoding_values(brotli_ok: bool) -> list[str]:
+    """Accept-Encoding candidates we can actually decode. gzip/deflate always;
+    br only when a Brotli library is installed (zstd never — aiohttp can't)."""
+    if brotli_ok:
+        return ["gzip, deflate, br", "gzip, deflate", "gzip, deflate, br"]
+    return ["gzip, deflate"]
+
+
+_ACCEPT_ENCODING_VALUES = _encoding_values(_brotli_available())
 
 
 class RequestFingerprint:
