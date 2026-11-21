@@ -131,6 +131,7 @@ falsealarm scan -u "https://app.example.com/s?q=x" -m sqli --sqli-technique erro
 | `--parallel N` | Scan N targets at once. |
 | `--sqli-technique` | `error,boolean,time` (default: error,boolean; +time on `--depth deep`). |
 | `--sqli-delay` | Seconds for time-based probes. |
+| `-X, --method` / `-d, --data` | Inject into an explicit request body (JSON or form), e.g. a JSON login API. |
 | `--oast` | Enable out-of-band (interactsh) testing for `vulnscan`. |
 | `--oast-server` / `--oast-token` | Use a self-hosted interactsh server. |
 
@@ -145,9 +146,26 @@ falsealarm scan -u https://app.example.com -m vulnscan \
   -T ~/.falsealarm/nuclei-templates/http --tags ssrf --oast
 ```
 
+```bash
+# JSON login API (SPA) — operator bypass + SQL tautology, re-verified
+falsealarm scan -u "https://app.example.com/api/auth/login" -m sqli,nosqli \
+  -d '{"email":"a@b.com","password":"x"}'
+```
+
 `sqli`, `nosqli` and `ssti` are **detectors**: hand confirmed findings to
 `sqlmap` / `tplmap`. `--oast` only reports when the target actually calls back.
 User defaults live in `~/.falsealarm/config.yaml` (`falsealarm config init`).
+
+### AI triage with a custom LLM
+
+```bash
+export FALSEALARM_LLM="openai/Combo1"
+export LLM_API_KEY="<key>"
+export LLM_API_BASE="http://192.168.10.103:20128/v1"
+falsealarm scan -u https://app.example.com -A --ai-triage
+```
+
+Any OpenAI-compatible endpoint works; it takes precedence over Gemini.
 
 ---
 

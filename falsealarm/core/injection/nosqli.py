@@ -145,6 +145,84 @@ AUTH_OPERATORS = [
     {"suffix": "[$regex]", "value": ".*"},
 ]
 
+# JSON operator objects injected into credential fields of a JSON login body.
+JSON_AUTH_OPERATORS = [
+    {"$ne": None},
+    {"$ne": "falsealarm_nope"},
+    {"$gt": ""},
+    {"$regex": ".*"},
+    {"$gte": ""},
+]
+
+
+async def detect_json_login_bypass(submit, user_path, pass_path, failed_markers=None) -> NoSQLiResult | None:
+    """Auth-bypass on a JSON login body.
+
+    ``submit(user_value, pass_value)`` builds the JSON body with the credential
+    fields set to the given values (which may be operator objects like
+    ``{"$ne": None}`` or SQL tautology strings) and returns the response.
+    Tries NoSQL operator objects and SQL tautology strings, re-verified.
+    """
+    markers = failed_markers or ("invalid", "incorrect", "failed", "wrong", "denied",
+                                 "try again", "unauthor", "sai", "không đúng",
+                                 '"success":false', '"success": false', '"authenticated":false',
+                                 '"error"', "not found")
+    fail = await submit("falsealarm_nouser", "falsealarm_nopass")
+    fail_body = (fail.get("body") or "").lower()
+    fail_status = fail.get("status", 0)
+    fail_len = len(fail_body)
+    has_marker = any(m in fail_body for m in markers)
+    # If bogus credentials already look authenticated (a token, success flag, or
+    # a redirect with no failure marker), the endpoint doesn't distinguish logins,
+    # so a "bypass" can't be told apart from normal behaviour — don't guess.
+    fail_authed = any(k in fail_body for k in ("token", "jwt", "\"success\":true", "dashboard", "bearer"))
+    if not has_marker and (fail_status in (301, 302, 303) or fail_authed or fail_status == 200):
+        return None
+
+    # (label, user_value, pass_value, technique)
+    attempts: list[tuple] = []
+    for op in JSON_AUTH_OPERATORS:
+        attempts.append((f"{op}", op, op, "auth-bypass"))
+    for taut in ("' OR '1'='1", "' OR 1=1-- -", '" OR "1"="1'):
+        attempts.append((taut, taut, taut, "auth-bypass"))
+
+    for label, uval, pval, technique in attempts:
+        resp = await submit(uval, pval)
+        if resp.get("error"):
+            continue
+        body = (resp.get("body") or "").lower()
+        status = resp.get("status", 0)
+        redirected = status in (301, 302, 303) and fail_status not in (301, 302, 303)
+        marker_gone = has_marker and not any(m in body for m in markers)
+        authed_token = any(k in body for k in ("token", "jwt", "\"success\":true", "dashboard", "welcome", "bearer"))
+        grew = fail_len and abs(len(body) - fail_len) / max(fail_len, 1) > 0.30
+        ok = redirected or marker_gone or (status == 200 and fail_status in (200, 401, 403) and (authed_token or grew))
+        if not ok:
+            continue
+        control = await submit("falsealarm_zz", "falsealarm_zz")
+        cbody = (control.get("body") or "").lower()
+        control_ok = control.get("status") in (301, 302, 303) or (has_marker and not any(m in cbody for m in markers))
+        if control_ok:
+            continue
+        is_nosql = isinstance(uval, dict)
+        reason = "redirect" if redirected else "login-failure message removed" if marker_gone else "auth token/shape change"
+        result = NoSQLiResult(
+            parameter=".".join(str(p) for p in (user_path or ())),
+            technique="auth-bypass", where="body",
+            payload=f"{field_label(user_path)}={label}",
+            evidence=f"JSON login bypass via {'NoSQL operator' if is_nosql else 'SQL tautology'} ({reason})",
+        )
+        if not is_nosql:
+            # Report a SQL tautology hit as a SQL injection, not NoSQL.
+            result.extra["type"] = "sqli"
+            result.extra["dbms"] = "SQL"
+        return result
+    return None
+
+
+def field_label(path) -> str:
+    return ".".join(str(p) for p in path) if path else "credential"
+
 
 async def detect_nosql_auth_bypass(probe: NoSQLLoginProbe) -> NoSQLiResult | None:
     fail = await probe.baseline_fail()

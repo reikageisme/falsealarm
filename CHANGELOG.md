@@ -4,6 +4,24 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-11-21
+
+### Added
+- **JSON / form request-body injection** (`-X/--method`, `-d/--data`). Point
+  `sqli`, `nosqli` (and `ssti`) straight at an API that takes a body — e.g. a
+  **JSON login API** a SPA uses — and each field is injected and re-verified:
+  - **JSON login auth-bypass**: NoSQL operator objects
+    (`{"email":{"$ne":null}}`, `$gt`/`$regex`/`$gte`) and SQL tautology strings
+    (`' OR '1'='1`). A SQL hit is reported as `sqli`, a NoSQL hit as `nosqli`.
+    Re-verified with a control payload, and never flagged when bogus
+    credentials already look authenticated.
+  - Per-field SQL error/boolean/time injection and NoSQL operator injection on
+    JSON (nested paths) and urlencoded bodies.
+- **AI triage via any OpenAI-compatible endpoint.** `--ai-triage` now reads
+  `LLM_API_KEY`, `LLM_API_BASE` and `FALSEALARM_LLM` (`provider/model`, also
+  `OPENAI_*` aliases) to use a local gateway / proxy / OpenAI, taking
+  precedence over Gemini. No key is written to disk.
+
 ## [1.4.1] - 2026-11-20
 
 ### Fixed

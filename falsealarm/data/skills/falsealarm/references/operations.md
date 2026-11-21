@@ -60,11 +60,14 @@ Current depth profiles are:
 `--exclude-tags`. Check coverage with `falsealarm templates validate <dir>`.
 
 `sqli`, `nosqli` and `ssti` detect SQL / NoSQL / template injection on query
-params and forms (login auth-bypass included); each hit is re-verified. They
-are detectors — hand confirmed findings to sqlmap / tplmap. `vulnscan --oast`
-enables interactsh out-of-band templates (needs `falsealarm[oast]`).
-Authenticated scans: `-H`/`-b`. Scope: `--scope`/`--exclude-scope`. User
-defaults: `falsealarm config init`.
+params, forms, and explicit request bodies (`-d/--data`, JSON login APIs
+included — NoSQL `{$ne:null}` and SQL tautology auth-bypass); each hit is
+re-verified. They are detectors — hand confirmed findings to sqlmap / tplmap.
+`vulnscan --oast` enables interactsh out-of-band templates (needs
+`falsealarm[oast]`). Authenticated scans: `-H`/`-b`. Scope:
+`--scope`/`--exclude-scope`. AI triage: `FALSEALARM_LLM`/`LLM_API_BASE`/
+`LLM_API_KEY` (OpenAI-compatible) or `GEMINI_API_KEY`. User defaults:
+`falsealarm config init`.
 
 Use `-m name1,name2` when the user needs an exact module set. FalseAlarm
 auto-discovers installed modules, so prefer `modules` output over a memorized

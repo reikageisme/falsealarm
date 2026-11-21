@@ -108,10 +108,28 @@ EOF
 * **Smart Catch-All & Baseline Calibration:** Heuristic analysis to calculate response baselines, filtering out wildcard DNS and soft-404 traps.
 
 > **Injection family:** `sqli`, `nosqli` and `ssti` share one framework —
-> they enumerate URL/query parameters and HTML form fields (GET and POST,
-> login forms included), inject per-engine payloads, and **re-verify every
-> candidate** before reporting. They are *detectors*: hand confirmed findings
-> to `sqlmap` / `tplmap` for exploitation.
+> they enumerate URL/query parameters, HTML form fields, **and explicit JSON /
+> form request bodies** (`-d/--data`), login forms and **JSON login APIs**
+> included, inject per-engine payloads, and **re-verify every candidate** before
+> reporting. They are *detectors*: hand confirmed findings to `sqlmap` /
+> `tplmap` for exploitation.
+
+#### JSON login API auth-bypass
+
+Modern SPAs log in through a JSON API (`POST /api/auth/login`), which has no
+HTML form to crawl. Point `sqli`/`nosqli` straight at it with the body:
+
+```bash
+# NoSQL operator bypass ({"email":{"$ne":null}}) and SQL tautology, re-verified
+falsealarm scan -u "https://app.example.com/api/auth/login" -m sqli,nosqli \
+  -d '{"email":"a@b.com","password":"x"}'
+
+# custom method / headers (content-type handled automatically)
+falsealarm scan -u "https://app.example.com/api/login" -m nosqli -X POST \
+  -H "X-Env: staging" -d '{"user":"a","pass":"b"}'
+```
+
+A SQL-tautology hit is reported as `sqli`, a NoSQL-operator hit as `nosqli`.
 
 ### Authenticated & Scoped Scanning
 * **Authenticated scans:** pass `-H "Authorization: Bearer …"` (repeatable) and/or `-b "session=…"`; every request in every module stays authenticated.
@@ -411,7 +429,23 @@ falsealarm scan --resume <scan-id>
 
 ## AI Triage Integration
 
-FalseAlarm introduces an AI Triage layer. By hooking into Gemini / OpenAI / Anthropic LLMs, the framework automatically analyzes scan outputs, filters out noise, and highlights chained exploit paths.
+FalseAlarm introduces an AI Triage layer that analyzes scan outputs, filters
+noise, and highlights chained exploit paths.
+
+**Any OpenAI-compatible endpoint** works — a local gateway (LiteLLM, vLLM,
+Ollama `/v1`), a proxy, or OpenAI itself — configured from environment
+variables (no key is written to disk):
+
+```bash
+export FALSEALARM_LLM="openai/Combo1"              # provider/model (or just a model)
+export LLM_API_KEY="<your-key>"
+export LLM_API_BASE="http://192.168.10.103:20128/v1"
+falsealarm scan -u example.com -A --ai-triage
+```
+
+`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` are accepted as aliases.
+When an OpenAI-compatible endpoint is configured it takes precedence; otherwise
+FalseAlarm falls back to Gemini (`GEMINI_API_KEY`).
 
 **Execute scan with AI Triage:**
 ```bash

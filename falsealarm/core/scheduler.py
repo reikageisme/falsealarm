@@ -266,14 +266,15 @@ class ScanScheduler:
 
         if self.config.ai_triage:
             self.logger.module_header("AI Triage Analysis")
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                self.logger.error("GEMINI_API_KEY environment variable not set. Cannot run AI Triage.")
+            ai, provider_name = self._select_ai_provider()
+            if ai is None:
+                self.logger.error(
+                    "No AI provider configured. Set LLM_API_BASE + LLM_API_KEY (OpenAI-compatible, "
+                    "e.g. a local gateway) or GEMINI_API_KEY."
+                )
             else:
-                self.logger.info("Initializing AI Provider (Gemini)...")
+                self.logger.info(f"Initializing AI provider ({provider_name})...")
                 try:
-                    from falsealarm.core.ai.gemini_provider import GeminiProvider
-                    ai = GeminiProvider(api_key=api_key)
                     self.logger.info("Sending scan results to AI for analysis. This may take a few seconds...")
 
                     prompt = (
@@ -301,6 +302,24 @@ class ScanScheduler:
                     self.logger.error(f"AI Triage failed: {e}")
 
         return all_results
+
+    def _select_ai_provider(self):
+        """Choose the AI provider from the environment.
+
+        An OpenAI-compatible endpoint (LLM_API_BASE/LLM_API_KEY/FALSEALARM_LLM,
+        also OPENAI_*) takes precedence so users can point triage at a local gateway;
+        otherwise fall back to Gemini (GEMINI_API_KEY).
+        """
+        from falsealarm.core.ai.openai_provider import OpenAIProvider
+
+        if OpenAIProvider.is_configured():
+            provider = OpenAIProvider()
+            return provider, f"OpenAI-compatible · {provider.model} @ {provider.base_url}"
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_key:
+            from falsealarm.core.ai.gemini_provider import GeminiProvider
+            return GeminiProvider(api_key=gemini_key), "Gemini"
+        return None, ""
 
     def _extract_downstream_targets(self, module_name: str, data: list) -> list[str]:
         """Extract URLs/domains from a module's output to feed into downstream modules."""

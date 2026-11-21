@@ -62,6 +62,9 @@ class ScanConfig:
     oast_server: str | None = None
     oast_token: str | None = None
     oast_wait: int = 6
+    # explicit request body for injection (-d/--data), e.g. a JSON login API
+    method: str = "GET"
+    data: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""

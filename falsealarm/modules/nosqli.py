@@ -32,6 +32,11 @@ class NoSQLiModule(BaseModule):
         if not target.startswith("http"):
             target = f"http://{target}"
 
+        # 0) Explicit request body (-d/--data): operator injection + JSON login bypass.
+        if getattr(self.config, "data", None):
+            await self._test_body(target, results, stats)
+            return self._make_result(target, results, stats)
+
         baseline = await self.engine.get(target)
         if baseline.get("error"):
             self.logger.debug(f"nosqli: baseline failed for {target}: {baseline.get('error')}")
@@ -58,6 +63,70 @@ class NoSQLiModule(BaseModule):
                 await self._test_form(target, form, results, stats)
 
         return self._make_result(target, results, stats)
+
+    async def _test_body(self, target, results, stats):
+        """Operator injection on each JSON/form field, plus JSON login bypass."""
+        from falsealarm.core.injection.body import (
+            credential_fields,
+            field_label,
+            get_path,
+            leaf_paths,
+            looks_like_login,
+            parse_body,
+            serialize,
+            set_path,
+        )
+        from falsealarm.core.injection.nosqli import detect_json_login_bypass
+
+        method = (getattr(self.config, "method", None) or "POST").upper()
+        kind, obj = parse_body(self.config.data)
+        extra_headers = self.config.header_dict()
+        paths = leaf_paths(obj) if kind == "json" else [(k,) for k in obj]
+
+        async def submit(mutated) -> dict:
+            body, ctype = serialize(kind, mutated)
+            headers = {**extra_headers, "Content-Type": ctype}
+            return await self.engine.request(method, target, data=body.encode("utf-8", "surrogateescape"),
+                                             headers=headers, allow_redirects=False)
+
+        # Login auth-bypass (SQL tautology + NoSQL operator objects) first.
+        if looks_like_login(kind, obj):
+            stats["login_forms"] += 1
+            user_p, pass_p = credential_fields(kind, obj)
+            if user_p and pass_p:
+                async def login_submit(user_val, pass_val) -> dict:
+                    mutated = set_path(set_path(obj, user_p, user_val), pass_p, pass_val)
+                    return await submit(mutated)
+
+                bypass = await detect_json_login_bypass(login_submit, user_p, pass_p)
+                if bypass:
+                    bypass.extra["url"] = target
+                    bypass.extra["method"] = method
+                    self.logger.finding_hook(bypass)
+                    results.append(bypass.to_dict())
+                    stats["vulnerable"] += 1
+
+        # Operator injection on each field: field=orig -> field={$ne: orig}.
+        for path in paths:
+            stats["params_tested"] += 1
+            original = get_path(obj, path)
+            baseline = await submit(obj)
+            detector = NoSQLiDetector(baseline)
+
+            def op_sender(operator):
+                async def _send(_payload: str, _p=path, _op=operator) -> dict:
+                    return await submit(set_path(obj, _p, {_op: original}))
+                return _send
+
+            result = await detector.operator_injection(op_sender("$ne"), op_sender("$eq"))
+            if result:
+                result.parameter = field_label(path)
+                result.where = "body"
+                result.extra["url"] = target
+                result.extra["method"] = method
+                self.logger.finding_hook(result)
+                results.append(result.to_dict())
+                stats["vulnerable"] += 1
 
     async def _test_query_param(self, parsed, params, name, value):
         baseline = await self.engine.get(urlunparse(parsed))

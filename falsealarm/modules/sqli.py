@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
+from falsealarm.core.injection.body import get_path as _get
 from falsealarm.core.injection.forms import INTERESTING, _FormParser
 from falsealarm.core.sqli.detector import LoginProbe, SQLiDetector, detect_auth_bypass
 from falsealarm.modules.base import BaseModule, ModuleResult
@@ -37,6 +38,11 @@ class SQLiModule(BaseModule):
 
         techniques = self._techniques()
         time_delay = int(getattr(self.config, "sqli_delay", 5) or 5)
+
+        # 0) Explicit request body (-d/--data): inject SQL into each field.
+        if getattr(self.config, "data", None):
+            await self._test_body(target, results, stats, techniques, time_delay)
+            return self._make_result(target, results, stats)
 
         baseline = await self.engine.get(target)
         if baseline.get("error"):
@@ -66,6 +72,47 @@ class SQLiModule(BaseModule):
                 await self._test_form(target, form, results, stats, techniques, time_delay)
 
         return self._make_result(target, results, stats)
+
+    async def _test_body(self, target, results, stats, techniques, time_delay):
+        """Inject SQL payloads into each field of an explicit request body."""
+        from falsealarm.core.injection.body import (
+            field_label,
+            leaf_paths,
+            parse_body,
+            serialize,
+            set_path,
+        )
+
+        method = (getattr(self.config, "method", None) or "POST").upper()
+        kind, obj = parse_body(self.config.data)
+        extra_headers = self.config.header_dict()
+        paths = leaf_paths(obj) if kind == "json" else [(k,) for k in obj]
+
+        async def send_body(path, payload: str) -> dict:
+            original = _get(obj, path) if kind == "json" else obj.get(path[0], "")
+            mutated = set_path(obj, path, f"{original}{payload}") if kind == "json" else {**obj, path[0]: f"{original}{payload}"}
+            body, ctype = serialize(kind, mutated)
+            headers = {**extra_headers, "Content-Type": ctype}
+            return await self.engine.request(method, target, data=body.encode("utf-8", "surrogateescape"),
+                                             headers=headers, allow_redirects=False)
+
+        baseline = await send_body(paths[0] if paths else (), "") if paths else await self.engine.get(target)
+        for path in paths:
+            stats["params_tested"] += 1
+            detector = SQLiDetector(baseline, time_delay=time_delay)
+
+            async def send(payload: str, _p=path) -> dict:
+                return await send_body(_p, payload)
+
+            result = await detector.probe_parameter(send, techniques)
+            if result:
+                result.parameter = field_label(path)
+                result.where = "body"
+                result.extra["url"] = target
+                result.extra["method"] = method
+                self.logger.finding_hook(result)
+                results.append(result.to_dict())
+                stats["vulnerable"] += 1
 
     # ------------------------------------------------------------------ #
     def _techniques(self) -> tuple[str, ...]:
