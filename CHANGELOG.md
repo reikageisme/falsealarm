@@ -4,6 +4,16 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-11-21
+
+### Fixed
+- **dirfuzz no longer reports rate-limit / error pages as found directories.**
+  Behind a CDN/WAF (e.g. Cloudflare) every path can return HTTP 429 (or 5xx);
+  these were listed as hundreds of bogus "Found" paths. dirfuzz now reports
+  only statuses that indicate a real resource (2xx, 3xx redirects, 401/403/405
+  and a few others), counts 429s as rate-limited, and drops other noise. The Go
+  engine applies the same filter.
+
 ## [1.5.0] - 2026-11-21
 
 ### Added

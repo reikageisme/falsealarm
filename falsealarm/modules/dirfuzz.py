@@ -30,6 +30,20 @@ class DirFuzzModule(BaseModule):
     name = "dirfuzz"
     description = "Advanced Parameter & Directory Fuzzing"
 
+    # Statuses that indicate a real resource worth reporting. 429 (rate limit),
+    # 4xx client errors other than auth/exists signals, and 5xx server errors
+    # are noise — a WAF/CDN like Cloudflare returns the same 429 page for every
+    # path, which must never be reported as a discovered directory.
+    REPORTABLE_STATUSES = frozenset({
+        200, 201, 202, 203, 204, 206,
+        301, 302, 303, 307, 308,
+        401, 403, 405, 407, 409, 410, 451,
+    })
+
+    @classmethod
+    def _reportable(cls, status: int) -> bool:
+        return status in cls.REPORTABLE_STATUSES
+
     @staticmethod
     def _drop_catch_all(results: list[dict], tested: int) -> tuple[list[dict], int]:
         """Post-hoc soft-200 / catch-all guard.
@@ -293,6 +307,13 @@ class DirFuzzModule(BaseModule):
                             stats["false_positives_dropped"] += 1
                             continue
 
+                        if status == 429:
+                            stats["rate_limited"] = stats.get("rate_limited", 0) + 1
+                            continue
+                        if not self._reportable(status):
+                            stats["noise_dropped"] = stats.get("noise_dropped", 0) + 1
+                            continue
+
                         if url:
                             item = {
                                 "type": "fuzz" if has_fuzz else "directory",
@@ -347,7 +368,11 @@ class DirFuzzModule(BaseModule):
                             stats["false_positives_dropped"] += 1
                             return None
 
-                        if status != 404 and status != 0:
+                        if status == 429:
+                            stats["rate_limited"] = stats.get("rate_limited", 0) + 1
+                            return None
+
+                        if self._reportable(status):
                             item = {
                                 "type": "fuzz" if has_fuzz else "directory",
                                 "payload": payload,

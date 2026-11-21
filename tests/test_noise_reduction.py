@@ -69,3 +69,14 @@ def test_js_endpoint_normalization_rejects_third_party_and_noise():
     assert JSAnalysisModule._normalize_endpoint(
         '//cdn.example.net/app.js', "https://example.com"
     ) is None
+
+
+def test_dirfuzz_filters_rate_limit_and_server_errors():
+    from falsealarm.modules.dirfuzz import DirFuzzModule
+
+    # Real-resource signals are reported.
+    for s in (200, 301, 302, 401, 403, 405):
+        assert DirFuzzModule._reportable(s), s
+    # Rate-limit, 404, and server errors are noise, never "found".
+    for s in (429, 404, 400, 500, 502, 503, 0):
+        assert not DirFuzzModule._reportable(s), s

@@ -36,6 +36,19 @@ func emitError(msg string) {
 	fmt.Println(string(errObj))
 }
 
+// isReportableStatus reports only statuses that indicate a real resource.
+// 429 (rate limit), 5xx, and most 4xx are noise — a CDN/WAF returns the same
+// page for every path and must not be reported as a discovered directory.
+func isReportableStatus(status int) bool {
+	switch status {
+	case 200, 201, 202, 203, 204, 206,
+		301, 302, 303, 307, 308,
+		401, 403, 405, 407, 409, 410, 451:
+		return true
+	}
+	return false
+}
+
 func main() {
 	targetURL := flag.String("u", "", "Target URL with FUZZ placeholder")
 	wordlistPath := flag.String("w", "", "Path to wordlist")
@@ -161,7 +174,7 @@ func main() {
 						atomic.StoreInt32(&activeBackoff, 1)
 						time.Sleep(2 * time.Second)
 						atomic.StoreInt32(&activeBackoff, 0)
-					} else if status != 404 && status != 400 && status != 0 {
+					} else if isReportableStatus(status) {
 						// Baseline catch-all comparison
 						isFP := false
 						if hasBaseline && status == baselineStatus {
