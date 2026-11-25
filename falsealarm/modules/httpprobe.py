@@ -32,12 +32,19 @@ class HTTPProbeModule(BaseModule):
                     # We hash the length and status code to group identical responses
                     sim_hash = hashlib.md5(f"{status}_{len(body)}_{response.get('title', '')}".encode()).hexdigest()
 
+                    # Redirects are not followed here, so the target lives in the
+                    # Location header (redirect_url is only set when following).
+                    headers = response.get("headers", {}) or {}
+                    location = ""
+                    if 300 <= int(status or 0) < 400:
+                        location = next((v for k, v in headers.items() if k.lower() == "location"), "")
+
                     return {
                         "url": url,
                         "status": status,
                         "content_length": response.get("content_length", 0),
                         "title": response.get("title", ""),
-                        "redirect": response.get("redirect_url", ""),
+                        "redirect": location or response.get("redirect_url", "") or "",
                         "server": response.get("headers", {}).get("Server", ""),
                         "sim_hash": sim_hash,
                         "alive": True

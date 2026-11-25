@@ -23,6 +23,52 @@ if TYPE_CHECKING:
     from falsealarm.core.logger import FalseAlarmLogger
 
 
+
+def _host_key(url: str) -> tuple[str, int | None]:
+    from urllib.parse import urlparse
+
+    p = urlparse(url)
+    default = {"http": 80, "https": 443}.get(p.scheme)
+    port = p.port if p.port not in (None, default) else None
+    return (p.hostname or "").lower(), port
+
+
+def dedupe_http_targets(items: list) -> list[str]:
+    """Pick the live URLs worth scanning downstream from httpprobe results.
+
+    The same site is often reachable over both http:// and https://. Scanning
+    both doubles every downstream request for no new information, so an
+    http:// URL is dropped when the same host is also live over https:// and
+    the http one either redirects to that https host or serves an identical
+    page (same similarity hash). Redirects to *other* hosts are kept out too:
+    their real content belongs to the redirect target, not this URL.
+    """
+    from urllib.parse import urlparse
+
+    live = [i for i in items if isinstance(i, dict) and i.get("alive") and i.get("url")]
+    https_by_host = {_host_key(i["url"])[0]: i for i in live if str(i["url"]).startswith("https://")}
+
+    keep: list[str] = []
+    for item in live:
+        url = str(item["url"])
+        status = int(item.get("status") or 0)
+        location = str(item.get("redirect") or "")
+        host = _host_key(url)[0]
+        if url.startswith("http://") and host in https_by_host:
+            twin = https_by_host[host]
+            redirects_to_https = 300 <= status < 400 and location.startswith("https://") and \
+                (urlparse(location).hostname or "").lower() == host
+            same_page = item.get("sim_hash") and item.get("sim_hash") == twin.get("sim_hash")
+            if redirects_to_https or same_page:
+                continue
+        if 300 <= status < 400 and location:
+            loc_host = (urlparse(location).hostname or host).lower()
+            if loc_host != host:
+                continue  # off-host redirect: nothing of this host to scan
+        keep.append(url)
+    return keep
+
+
 class ScanScheduler:
     """Orchestrate module execution and manage scan lifecycle.
 
@@ -340,9 +386,9 @@ class ScanScheduler:
                     scheme = "https" if port in self.HTTPS_PORTS else "http"
                     targets.append(f"{scheme}://{target}:{port}")
             elif module_name == "httpprobe":
-                url = item.get("url")
-                if url and item.get("alive"):
-                    targets.append(url)
+                pass  # handled below with scheme de-duplication
+        if module_name == "httpprobe":
+            targets.extend(dedupe_http_targets(data))
         deduped = list(dict.fromkeys(canonical_url(target) for target in targets if target))
         # Keep auto-discovered targets inside the authorised scope.
         scope = getattr(self, "_scope", None)

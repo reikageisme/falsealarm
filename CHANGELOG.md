@@ -4,6 +4,25 @@ All notable changes to FalseAlarm are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-11-25
+
+### Fixed
+- **DNS module always reported "No DNS records".** The pipeline passes URLs
+  (`https://example.com`), and the module queried that whole string as a DNS
+  name. It now resolves the bare hostname, so records, SPF/DMARC and zone
+  transfer checks actually run.
+- **Every host was scanned twice (http:// and https://).** httpprobe recorded
+  no redirect target (redirects aren't followed and `Location` was ignored), so
+  an `http://` URL that merely redirects to `https://` was sent downstream as a
+  separate target, doubling all downstream requests. httpprobe now records the
+  `Location` header, and downstream targets drop an http:// URL that redirects
+  to, or serves the same page as, its https:// twin, plus off-host redirects.
+  Verified end to end: one dirfuzz run instead of two, same findings.
+- **Wayback Machine lookups could hang for minutes.** The CDX query is now
+  bounded (`wayback_limit`, default 5000) and limited to successful captures.
+- The DNS module no longer prints a duplicate records table (the scan summary
+  already renders it).
+
 ## [1.5.1] - 2026-11-21
 
 ### Fixed

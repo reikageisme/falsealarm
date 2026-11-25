@@ -25,7 +25,14 @@ class WaybackModule(BaseModule):
 
         # Wayback Machine CDX API
         # collapse=urlkey to remove duplicates
-        cdx_url = f"https://web.archive.org/cdx/search/cdx?url=*.{target}/*&output=json&collapse=urlkey&fl=original,mimetype,timestamp"
+        # Cap the result set: an unbounded CDX query for a busy domain streams
+        # hundreds of thousands of rows (minutes of waiting, truncated at the
+        # body limit anyway). Only successful captures are useful leads.
+        limit = int(getattr(self.config, "wayback_limit", 5000) or 5000)
+        cdx_url = (
+            f"https://web.archive.org/cdx/search/cdx?url=*.{target}/*&output=json&collapse=urlkey"
+            f"&fl=original,mimetype,timestamp&filter=statuscode:200&limit={limit}"
+        )
 
         sensitive_exts = ('.php', '.asp', '.aspx', '.jsp', '.env', '.bak', '.old', '.zip', '.sql', '.json', '.xml', '.config')
 

@@ -63,6 +63,8 @@ class ScanConfig:
     oast_token: str | None = None
     oast_wait: int = 6
     # explicit request body for injection (-d/--data), e.g. a JSON login API
+    # cap on archived URLs fetched from the Wayback Machine CDX API
+    wayback_limit: int = 5000
     method: str = "GET"
     data: str | None = None
 

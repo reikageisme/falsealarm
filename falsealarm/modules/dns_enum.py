@@ -13,8 +13,22 @@ class DNSEnumModule(BaseModule):
     name = "dns"
     description = "DNS Record Enumeration — Enumerate all DNS records for a domain"
 
+    @staticmethod
+    def _hostname(target: str) -> str:
+        from urllib.parse import urlparse
+
+        target = (target or "").strip()
+        if "://" in target:
+            target = urlparse(target).hostname or target
+        else:
+            target = target.split("/")[0].split(":")[0]
+        return target.rstrip(".").lower()
+
     async def run(self, target: str) -> ModuleResult:
         self._start_timer()
+        # The pipeline passes URLs (https://example.com/path); DNS needs the bare
+        # hostname, otherwise every lookup fails and the module reports no records.
+        target = self._hostname(target)
         self.logger.module_header(f"DNS Enumeration: {target}")
 
         records = []
@@ -125,11 +139,7 @@ class DNSEnumModule(BaseModule):
 
         stats["total_records"] = len(records)
 
-        # Display Table
-        if records and not self.config.silent:
-            rows = [[r["type"], r["name"], r["value"], str(r["ttl"])] for r in records]
-            self.logger.table("DNS Records", ["Type", "Name", "Value", "TTL"], rows)
-
+        # The end-of-scan summary renders a "DNS records" table, so only log here.
         if not records:
             self.logger.warning("No DNS records found.")
         else:
